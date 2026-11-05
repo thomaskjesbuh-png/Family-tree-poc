@@ -1,0 +1,18 @@
+record_id,source,record_type,year,url,given_name,surname,farm,sex,birth_year,birthplace,parish,municipality,county,father_name,mother_name,spouse_name,role,raw_text
+S001,FICTIONAL SAMPLE: Skjeberg church book,baptism,1848,sample://S001,Kirstine,,,f,1848,Skjeberg,Skjeberg,Skjeberg,Østfold,Ole Larssen,Marthe Hansdatter,,baptised,
+S002,FICTIONAL SAMPLE: 1865 census,census,1865,sample://S002,Christine,Olsdatter,Søndre Ree,f,1848,Skjeberg,Skjeberg,Skjeberg,Østfold,Ole Larsen,Marte Hansdatter,,daughter,
+S003,FICTIONAL SAMPLE: 1875 census,census,1875,sample://S003,Kristine,Olsen,Ree,f,1847,Skjeberg,Skjeberg,Skjeberg,Østfold,,,Johan Andersen,wife,
+S004,FICTIONAL SAMPLE: 1865 census,census,1865,sample://S004,Kristine,Olsdatter,Bjørnstad,f,1849,Tune,Tune,Tune,Østfold,Ole Hansen,Anne Pedersdatter,,daughter,
+S010,FICTIONAL SAMPLE: 1865 census,census,1865,sample://S010,Ole,Hansen,Bakke,m,1851,Rakkestad,Rakkestad,Rakkestad,Østfold,Hans Olsen,Karen Nilsdatter,,son,
+S011,FICTIONAL SAMPLE: 1865 census,census,1865,sample://S011,Ole,Hansen,Haugen,m,1852,Rakkestad,Rakkestad,Rakkestad,Østfold,Hans Pedersen,Berte Olsdatter,,son,
+S012,FICTIONAL SAMPLE: 1900 census,census,1900,sample://S012,Ole,Hansen,Bakke,m,1851,Rakkestad,Rakkestad,Rakkestad,Østfold,,,Inger Marie Larsdatter,head,
+S013,FICTIONAL SAMPLE: 1900 census,census,1900,sample://S013,Ole,Hansen,Haugen,m,1852,Rakkestad,Rakkestad,Rakkestad,Østfold,,,Anne Jensen,head,
+S020,FICTIONAL SAMPLE: 1865 census,census,1865,sample://S020,Anders,Pedersen,Holm,m,1862,Tune,Tune,Tune,Østfold,Peder Andersen,Inger Olsdatter,,son,
+S021,FICTIONAL SAMPLE: 1900 census,census,1900,sample://S021,Anders,Holm,Holm,m,1862,Tune,Glemmen,Glemmen,Østfold,,,Mathilde Karlsen,head,
+S022,FICTIONAL SAMPLE: 1900 census,census,1900,sample://S022,Anders,Pedersen,Lunde,m,1866,Tune,Tune,Tune,Østfold,,,Karen Olsen,head,
+S030,FICTIONAL SAMPLE: 1910 census,census,1910,sample://S030,Marie,Johansen,Ystehede,f,1881,Idd,Idd,Idd,Østfold,,,Karl Nilsen,wife,
+S031,FICTIONAL SAMPLE: 1900 census,census,1900,sample://S031,Maria,Johansdatter,Ystehede,f,1880,Idd,Idd,Idd,Østfold,Johan Kristiansen,Anne Mathea Olsdatter,,daughter,
+S032,FICTIONAL SAMPLE: 1910 census,census,1910,sample://S032,Marie,Johansen,Kirkeby,f,1880,Berg,Berg,Berg,Østfold,,,Hans Olsen,wife,
+S033,FICTIONAL SAMPLE: Idd church book,baptism,1880,sample://S033,,,,,,,Idd,Idd,Østfold,,,,,"Døbt 4. april 1880 i Idd kirke: Marie, født 12. mars 1880. Fader: Johan Kristiansen, gaardbruger paa Ystehede. Moder: Anne Mathea Olsdatter."
+S040,FICTIONAL SAMPLE: 1865 census,census,1865,sample://S040,Gunhild,Thorsdatter,Asmaløy,f,1841,Hvaler,Hvaler,Hvaler,Østfold,Thor Olsen,Kari Larsdatter,,daughter,
+S099,FICTIONAL SAMPLE: 1930 census,census,1930,sample://S099,Ole,Hansen,Bakke,m,1898,Rakkestad,Rakkestad,Rakkestad,Østfold,Ole Hansen,Inger Marie Larsdatter,,son,

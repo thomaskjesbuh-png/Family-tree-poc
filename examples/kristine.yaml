@@ -1,0 +1,10 @@
+# Fictional example person (matches the fictional sample records).
+given_name: Kristine
+surname: Olsdatter
+name_variants: [Christine Olsdatter, Kirstine Olsen]
+birth_year: 1848
+birthplace: Skjeberg
+county: Østfold
+sex: f
+father_name: Ole Larsen
+mother_name: Marte Hansdatter
