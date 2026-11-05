@@ -13,12 +13,12 @@ the right record?** The answer goes in `reports/accuracy.md`.
 
 | Item | Status |
 | --- | --- |
-| Access investigation (`docs/access-findings.md`) | Written. **Blocked:** archive hosts unreachable from the dev environment, nothing verified |
+| Access investigation (`docs/access-findings.md`) | Done (2026-11-05). Digitalarkivet's robots.txt bars AI agents; no bulk API; census files for 1801, 1865, 1900 and 1910 downloadable from xml.arkivverket.no, licence unstated |
 | Pipeline (search, name normalisation, scoring, ranking) | Works end to end on a fictional local sample |
 | Model steps (Haiku extraction, Sonnet same-person check) | Built and tested with a fake client. **Not yet run against the real API** |
 | Unit tests | 53 passing |
 | Accuracy report | Generated for 5 fictional cases. Ready to rerun on 20 real ancestors |
-| Live Digitalarkivet source | Intentionally not implemented until access terms are confirmed |
+| Live Digitalarkivet source | Intentionally not implemented: robots.txt bars AI agents |
 
 The sample records in `data/sample_records.csv` are **invented** and marked
 `FICTIONAL SAMPLE`. The scoring rules were tuned on those same fictional cases,
@@ -142,16 +142,16 @@ tests/                  unit tests + known_people.yaml
 
 ## Open questions and next steps
 
-1. **Get access answers from Arkivverket.** See the question list in
-   `docs/access-findings.md`. Licence, commercial use and automated access
-   decide the whole approach.
-2. **Allow the archive hosts in the dev environment** (digitalarkivet.no,
-   arkivverket.no, data.norge.no, histreg.no) and redo the access check against the
-   real pages.
+1. **Ask Nasjonalarkivet** the questions in `docs/access-findings.md`. The
+   first one matters most: whether its AI-agent ban covers this use of the
+   downloadable files and of the 1910 API. Licence and commercial use come next.
+2. **Import the downloadable census files** for Østfold from xml.arkivverket.no:
+   the 1801 CSV and the 1865, 1900 and 1910 booklet PDFs. Convert them to the
+   `data/README.md` format. The 1875 census and church records are not
+   available as data.
 3. **Thomas: fill in 20 real ancestors** in `tests/known_people.yaml` (copy
    the `R01` block, set `enabled: true`), including a few very common names.
-4. **Get real records** for Østfold: a downloaded dataset converted to the
-   `data/README.md` format, or a permitted live source. Then run
+4. **Run the real test set** on the imported records:
    `python evaluate.py --kind real --records ...`.
 5. **Run with `--llm`** on the real set. Compare accuracy and cost with and
    without the model steps.
@@ -159,4 +159,5 @@ tests/                  unit tests + known_people.yaml
    to check calibration honestly.
 7. Not yet handled: household context (a child's siblings and parents in the
    same census household), linking records to each other before matching, and
-   the Historisk befolkningsregister.
+   the Historisk befolkningsregister (search only, no API; its person links
+   would be the strongest evidence).

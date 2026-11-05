@@ -1,17 +1,16 @@
-"""Placeholder for live Digitalarkivet access.
+"""Placeholder for live Digitalarkivet access. Deliberately not implemented.
 
-Deliberately not implemented. As of the access investigation
-(docs/access-findings.md) no documented public search API was found, the
-terms of use for automated access could not be read, and this environment
-cannot reach digitalarkivet.no at all. The spec says not to guess or work
-around this, so this source refuses to run until the open questions in
-docs/access-findings.md are answered by Arkivverket.
+Findings (docs/access-findings.md, checked 2026-11-05):
+  * robots.txt on www.digitalarkivet.no and api.digitalarkivet.no disallows
+    AI agents (ClaudeBot, Claude-User, anthropic-ai and ~140 others) from the
+    whole site.
+  * Nasjonalarkivet staff confirm there is no bulk download API.
+  * A documented 1910 census API exists (CC BY 3.0 NO), but sits on the same
+    AI-restricted host.
 
-When access is confirmed, implement `search` here using:
-  * RateLimiter (1 request/second unless the terms allow more)
-  * USER_AGENT
-  * the SQLite Cache, so the same record is never fetched twice
-and map each hit to a Record with a direct link to the record page.
+Do not implement this until Nasjonalarkivet confirms in writing that this use
+is allowed (question 1 in docs/access-findings.md). Use the downloadable census
+files from xml.arkivverket.no through the local source instead.
 """
 
 from __future__ import annotations
@@ -28,7 +27,7 @@ class DigitalarkivetSource(Source):
 
     def search(self, query: PersonQuery) -> list[Record]:
         raise SourceUnavailable(
-            "Live Digitalarkivet access is not implemented: programmatic access and "
-            "terms of use are unconfirmed. See docs/access-findings.md. "
-            "Use --source local with a sample file instead."
+            "Live Digitalarkivet access is not implemented: its robots.txt disallows "
+            "AI agents and there is no confirmed permission. See docs/access-findings.md. "
+            "Use --source local with a records file instead."
         )
