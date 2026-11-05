@@ -14,10 +14,11 @@ the right record?** The answer goes in `reports/accuracy.md`.
 | Item | Status |
 | --- | --- |
 | Access investigation (`docs/access-findings.md`) | Done (2026-11-05). Digitalarkivet's robots.txt bars AI agents; no bulk API; census files for 1801, 1865, 1900 and 1910 downloadable from xml.arkivverket.no, licence unstated |
-| Pipeline (search, name normalisation, scoring, ranking) | Works end to end on a fictional local sample |
+| Pipeline (search, name normalisation, scoring, ranking) | Works end to end on the fictional sample and on real Østfold census records |
+| Census importer | 444,560 Østfold person records from the 1801, 1865, 1900 and 1910 censuses. Counts match the booklets' own totals to within 23 of 394,442 (0.006%) |
 | Model steps (Haiku extraction, Sonnet same-person check) | Built and tested with a fake client. **Not yet run against the real API** |
-| Unit tests | 53 passing |
-| Accuracy report | Generated for 5 fictional cases. Ready to rerun on 20 real ancestors |
+| Unit tests | 73 passing |
+| Accuracy report | Generated for 5 fictional cases. Ready to run on 20 real ancestors against the imported records |
 | Live Digitalarkivet source | Intentionally not implemented: robots.txt bars AI agents |
 
 The sample records in `data/sample_records.csv` are **invented** and marked
@@ -32,7 +33,42 @@ python3 -m venv .venv && . .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Python 3.11 or newer.
+Python 3.11 or newer. The census importer also needs `pdftotext` from
+poppler-utils (`apt-get install poppler-utils` or `brew install poppler`).
+
+## Real census data (Østfold)
+
+```bash
+python tools/fetch_census.py        # ~120 MB from xml.arkivverket.no into data/raw/
+python import_census.py             # -> data/real/ostfold_records.csv (about 2.5 minutes)
+python tools/validate_import.py     # compare parsed counts with each booklet's totals
+python find.py person.yaml --records data/real/ostfold_records.csv
+```
+
+| Census | Source file | Persons | Birth year | Relations |
+| --- | --- | --- | --- | --- |
+| 1801 | Research CSV for Østfold | 50,141 | Computed from age (`faar`) | Machine-made links to mother, father and spouse in the household (the archive warns they contain errors) |
+| 1865 | 26 municipality booklets (PDF) | 98,846 | Computed from age (±1) | Inferred from family role ("hans Søn", "deres Datter") |
+| 1900 | 26 booklets | 139,850 | As written (year or date) | Inferred from coded role (hf, hm, s, d) |
+| 1910 | 30 booklets | 155,723 | As written (date) | Inferred from coded role |
+
+The 1875 census and church records are not available as data.
+
+Notes on the imported records:
+
+* **Links:** booklet records link to the page in the archive's PDF, e.g.
+  `.../hefter/1910/01Ostfold/f9100112_hefte.pdf#page=12`. 1801 records link to
+  `https://www.digitalarkivet.no/census/person/<PFID>`. That URL pattern couldn't
+  be checked from here, because Digitalarkivet bars AI agents.
+* **Inferred relations:** parents and spouse come from household position, not
+  from a stated link. Stepchildren, foster children, grandchildren, in-laws and
+  servants get no parents. A "child" whose patronymic can't come from the head's
+  name loses the inferred father. Matches that rely on inferred relations say so.
+* **Licence:** none is stated for these files (see `docs/access-findings.md`),
+  so `data/raw/` and `data/real/` are git-ignored and nothing from them is
+  committed. Use them for personal testing until Nasjonalarkivet answers.
+* Spelling in the 1900 booklets abbreviates patronymics ("Ols." for
+  Olsen/Olsdatter), and the name matching handles this.
 
 ## Run
 
@@ -134,7 +170,13 @@ ancestor_finder/
   llm.py                Claude calls, budget, usage log
   cache.py              SQLite cache
   sources/local.py      CSV/JSON records file
-  sources/digitalarkivet.py  placeholder; refuses until access is confirmed
+  sources/digitalarkivet.py  placeholder; refuses (robots.txt bars AI agents)
+  importers/booklets.py      1865/1900/1910 census booklet PDFs -> records
+  importers/ft1801.py        1801 research CSV -> records
+  importers/households.py    parents/spouse from household position
+import_census.py        downloaded files -> data/real/ostfold_records.csv
+tools/fetch_census.py   download Østfold census files (1 request/second)
+tools/validate_import.py  parsed counts vs booklet totals
 data/                   fictional sample records + format notes
 docs/access-findings.md
 tests/                  unit tests + known_people.yaml
@@ -145,19 +187,20 @@ tests/                  unit tests + known_people.yaml
 1. **Ask Nasjonalarkivet** the questions in `docs/access-findings.md`. The
    first one matters most: whether its AI-agent ban covers this use of the
    downloadable files and of the 1910 API. Licence and commercial use come next.
-2. **Import the downloadable census files** for Østfold from xml.arkivverket.no:
-   the 1801 CSV and the 1865, 1900 and 1910 booklet PDFs. Convert them to the
-   `data/README.md` format. The 1875 census and church records are not
-   available as data.
+2. **Census import is done** for Østfold (1801, 1865, 1900, 1910). Not
+   available as data: the 1875 census and church records.
 3. **Thomas: fill in 20 real ancestors** in `tests/known_people.yaml` (copy
    the `R01` block, set `enabled: true`), including a few very common names.
 4. **Run the real test set** on the imported records:
-   `python evaluate.py --kind real --records ...`.
+   `python evaluate.py --kind real --records data/real/ostfold_records.csv`.
+   Since there are no church records, use census entries as the expected
+   answers (`expected.record_ids` take the ids printed by `find.py`).
 5. **Run with `--llm`** on the real set. Compare accuracy and cost with and
    without the model steps.
 6. **Re-tune the weights on real data**, keeping some cases out of tuning
    to check calibration honestly.
-7. Not yet handled: household context (a child's siblings and parents in the
-   same census household), linking records to each other before matching, and
+7. Not yet handled: using siblings in the same household as evidence, linking
+   the same person across censuses before matching, a faster loader
+   (about 9 s to load 444k records), and
    the Historisk befolkningsregister (search only, no API; its person links
    would be the strongest evidence).

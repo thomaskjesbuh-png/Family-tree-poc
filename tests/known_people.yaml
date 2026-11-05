@@ -2,8 +2,9 @@
 #
 # kind: fictional   -> runs against data/sample_records.csv; checks the pipeline end to end.
 # kind: real        -> Thomas's real ancestors with known correct answers.
-#                      Set enabled: true once filled in. Run against the real source
-#                      (or a downloaded dataset) with:  python evaluate.py --kind real --records <file>
+#                      Set enabled: true once filled in. Run against the imported census:
+#                      python evaluate.py --kind real --records data/real/ostfold_records.csv
+#                      Record ids look like ft1865-0117-00003 (booklets) or pf01058190000005 (1801).
 #
 # expected.record_ids: every record that is the correct person (any of them counts
 #                      as found). Empty list = the correct answer is "no match".

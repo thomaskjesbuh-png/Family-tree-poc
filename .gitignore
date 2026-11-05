@@ -5,3 +5,7 @@ cache/
 logs/*.jsonl
 .env
 .venv/
+# downloaded census data: licence not stated, keep it out of git
+data/raw/
+data/real/
+*.pickle
