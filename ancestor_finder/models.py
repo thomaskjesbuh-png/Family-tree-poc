@@ -85,6 +85,8 @@ class Record:
     role: str = ""                # e.g. "child", "head", "wife", "baptised"
     raw_text: str = ""            # transcription text, if fields are not split out
     extracted_by_model: bool = False  # True when fields came from LLM extraction
+    relations_inferred: bool = False  # parents/spouse derived from household position
+    birth_year_from_age: bool = False # birth year computed from stated age
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -96,10 +98,13 @@ class Record:
         for k in ("year", "birth_year"):
             v = data.get(k)
             data[k] = int(v) if v not in (None, "") else None
-        for k in known - {"year", "birth_year", "extracted_by_model"}:
+        flags = {"extracted_by_model", "relations_inferred", "birth_year_from_age"}
+        for k in known - {"year", "birth_year"} - flags:
             if data.get(k) is None:
                 data[k] = ""
-        data["extracted_by_model"] = bool(data.get("extracted_by_model", False))
+        for k in flags:
+            v = data.get(k, False)
+            data[k] = v.strip().lower() in ("1", "true", "yes") if isinstance(v, str) else bool(v)
         return cls(**data)
 
     @property

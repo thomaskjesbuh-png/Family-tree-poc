@@ -127,6 +127,10 @@ def patronymic_root(word: str) -> tuple[str, str] | None:
         s = phonetic(suffix)
         if w.endswith(s) and len(w) - len(s) >= 2:
             return _strip_genitive(w[: -len(s)]), gender
+    # Abbreviated patronymic (1900 census): "Ols.", "Anders.", "Olaves."
+    m = re.fullmatch(r"([a-zæøå]{2,}s)\.", raw)
+    if m:
+        return _strip_genitive(phonetic(m.group(1))), ""
     # Abbreviated daughter form: "Olsd." / "Hansd."
     m = re.fullmatch(r"([a-zæøå]{2,}s)d\.?", raw)
     if m:
@@ -263,6 +267,8 @@ def surname_similarity(query_surname: str, rec_surname: str, rec_farm: str = "")
             if score > best:
                 best, how = score, h
         for ft in farm_tokens:
+            if q_pat:
+                break  # a patronymic is never a farm name
             score = word_similarity(qt, ft)
             if score > best:
                 best, how = score, f"surname {qt} matches farm name {ft}"

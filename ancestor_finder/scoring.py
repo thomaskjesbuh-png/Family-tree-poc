@@ -103,6 +103,9 @@ def _place(q: PersonQuery, r: Record) -> ScorePart | None:
                 best, best_place = s, p
     if best >= 0.95:
         return ScorePart("place", 1.0, WEIGHTS["place"], f"same place ({best_place})")
+    if best >= 0.88:
+        return ScorePart("place", best, WEIGHTS["place"],
+                         f"{q.birthplace} vs {best_place}: likely the same place, spelled differently")
     if q.county and r.county and names.word_similarity(q.county, r.county) >= 0.95:
         how = f"same county ({r.county})" + (", different parish" if q.birthplace else "")
         return ScorePart("place", max(best, 0.6 if q.birthplace else 1.0), WEIGHTS["place"], how)
@@ -191,6 +194,10 @@ def score_record(q: PersonQuery, r: Record) -> Candidate:
         notes.append(f"{conflicts} listed family member(s) conflict with the query")
     if r.extracted_by_model:
         notes.append("fields were extracted from the transcription by a model; check the source")
+    if r.relations_inferred and listed:
+        notes.append("parents/spouse in this record are inferred from household position")
+    if r.birth_year_from_age:
+        notes.append("birth year in record is computed from stated age (often ±1)")
     conf = confidence_for(score)
     if asked and not listed and conf == "high":
         conf = "medium"
@@ -210,26 +217,30 @@ def rank(candidates: list[Candidate]) -> list[Candidate]:
     """Sort, drop weak candidates, and downgrade ambiguous leaders."""
     ranked = sorted((c for c in candidates if c.score >= REPORT_MIN),
                     key=lambda c: c.score, reverse=True)
-    # Several records can describe the same person (census + baptism), so only
-    # treat a close runner-up as a rival when it looks like a different person:
-    # a different birth year or different parents.
-    if len(ranked) >= 2:
-        lead = ranked[0]
-        for other in ranked[1:]:
-            if lead.score - other.score > AMBIGUITY_GAP:
-                break
-            if _looks_like_different_person(lead.record, other.record):
-                for c in (lead, other):
-                    if c.confidence == "high":
-                        c.confidence = "medium"
-                    c.notes.append(f"close rival: {other.record.record_id if c is lead else lead.record.record_id} "
-                                   "looks like a different person with a similar score")
-                break
+    # Several records can describe the same person (census + baptism), so a
+    # rival only counts when it looks like a different person. If two strong
+    # candidates are clearly different people, neither can be "high".
+    strong = [c for c in ranked[:40] if c.score >= HIGH - AMBIGUITY_GAP]
+    for c in strong:
+        rival = next((o for o in strong if o is not c and o.score >= c.score - AMBIGUITY_GAP * 3
+                      and _looks_like_different_person(c.record, o.record)), None)
+        if rival is not None:
+            if c.confidence == "high":
+                c.confidence = "medium"
+            c.notes.append(f"close rival: {rival.record.record_id} looks like a different person "
+                           "with a similar score")
     return ranked
 
 
 def _looks_like_different_person(a: Record, b: Record) -> bool:
     if a.birth_year and b.birth_year and abs(a.birth_year - b.birth_year) > 1:
+        return True
+    if a.spouse_name and b.spouse_name and names.given_name_similarity(a.spouse_name, b.spouse_name) < 0.9:
+        return True
+    # birthplace never changes for a person (residence does, so it isn't used)
+    pa, pb = a.birthplace, b.birthplace
+    if pa and pb and max(
+            (names.word_similarity(x, y) for x in pa.split() for y in pb.split()), default=0) < 0.85:
         return True
     if a.father_name and b.father_name and names.given_name_similarity(a.father_name, b.father_name) < 0.9:
         return True
