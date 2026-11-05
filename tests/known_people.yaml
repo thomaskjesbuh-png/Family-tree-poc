@@ -1,0 +1,103 @@
+# Test set for the accuracy report (evaluate.py).
+#
+# kind: fictional   -> runs against data/sample_records.csv; checks the pipeline end to end.
+# kind: real        -> Thomas's real ancestors with known correct answers.
+#                      Set enabled: true once filled in. Run against the real source
+#                      (or a downloaded dataset) with:  python evaluate.py --kind real --records <file>
+#
+# expected.record_ids: every record that is the correct person (any of them counts
+#                      as found). Empty list = the correct answer is "no match".
+# expected.links:      direct links to the correct records (for real cases).
+
+cases:
+  # ---------------- fictional pipeline checks ----------------
+  - id: F1-kristine-spelling
+    kind: fictional
+    note: Spelling variants (Kirstine/Christine/Kristine), patronymic Olsdatter vs Olsen, decoy namesake in Tune.
+    person:
+      given_name: Kristine
+      surname: Olsdatter
+      birth_year: 1848
+      birthplace: Skjeberg
+      county: Østfold
+      sex: f
+      father_name: Ole Larsen
+    expected:
+      record_ids: [S001, S002, S003]
+
+  - id: F2-ole-hansen-namesakes
+    kind: fictional
+    note: Two Ole Hansens born a year apart in Rakkestad; only the father separates them in 1865.
+    person:
+      given_name: Ole
+      surname: Hansen
+      birth_year: 1851
+      birthplace: Rakkestad
+      county: Østfold
+      sex: m
+      father_name: Hans Olsen
+    expected:
+      record_ids: [S010, S012]
+
+  - id: F3-farm-name-surname
+    kind: fictional
+    note: Farm name used as surname (Anders Holm) and a move from Tune to Glemmen.
+    person:
+      given_name: Anders
+      surname: Pedersen Holm
+      birth_year: 1862
+      birthplace: Tune
+      county: Østfold
+      sex: m
+      father_name: Peder Andersen
+    expected:
+      record_ids: [S020, S021]
+
+  - id: F4-marie-spouse-and-raw-text
+    kind: fictional
+    note: Identified by spouse; one correct record is a raw transcription that needs --llm extraction.
+    person:
+      given_name: Marie
+      surname: Johansdatter
+      birth_year: 1880
+      birthplace: Idd
+      county: Østfold
+      sex: f
+      spouse_name: Karl Nilsen
+    expected:
+      record_ids: [S030, S031, S033]
+
+  - id: F5-no-record
+    kind: fictional
+    note: Nobody matching exists; a weak lookalike (Gunhild Thorsdatter, born 1841 in Hvaler) must not be claimed.
+    person:
+      given_name: Gunhild
+      surname: Torstensdatter
+      birth_year: 1835
+      birthplace: Glemmen
+      county: Østfold
+      sex: f
+    expected:
+      record_ids: []
+
+  # ---------------- real ancestors (Thomas fills these in) ----------------
+  # Copy this block 20 times. Include a few very common names (Ole Hansen,
+  # Anne Olsdatter, ...) to test confusion between namesakes.
+  - id: R01
+    kind: real
+    enabled: false
+    note: ""
+    person:
+      given_name: ""
+      surname: ""
+      name_variants: []
+      birth_year: null
+      birthplace: ""
+      county: Østfold
+      sex: ""
+      father_name: ""
+      mother_name: ""
+      spouse_name: ""
+    expected:
+      record_ids: []      # ids as they appear in the source / dataset
+      links: []           # direct links to the correct records
