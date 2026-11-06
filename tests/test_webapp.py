@@ -129,3 +129,13 @@ def test_investigate_returns_household_and_only_real_corroboration(client):
     # a namesake without the same family is not evidence
     assert all(e["same_family"] or e["confidence"] == "high" for e in r["elsewhere"])
     assert client.post("/api/investigate", json={"record_id": "nope"}).status_code == 404
+
+
+def test_investigate_counts_namesakes_in_the_same_place(client):
+    # the only Hans of his age in Rakkestad in 1910 is evidence in itself
+    r = client.post("/api/investigate", json={"record_id": "demo1910-035"}).get_json()
+    assert r["namesakes"]["count"] == 0 and r["namesakes"]["place"] == "Rakkestad"
+    # two Ole Larsens born a year apart on different farms: each is the other's namesake
+    r = client.post("/api/investigate", json={"record_id": "demo1910-036"}).get_json()
+    assert r["namesakes"]["count"] == 1
+    assert r["namesakes"]["examples"][0]["record_id"] == "demo1910-027"

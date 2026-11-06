@@ -53,6 +53,15 @@ _GIVEN_NAME_GROUPS = [
     ["martin", "morten"],
     ["eli", "elie"],
     ["inger", "ingeborg"],
+    # seen in real finds: the same person written differently across records
+    ["olav", "olaf", "oluf", "olof"],
+    ["mikal", "mikkel", "mikael", "michael", "michel"],
+    ["salomon", "salamon"],
+    ["hedvig", "hedda", "hedevig"],
+    ["paul", "pål", "povel"],
+    ["pernille", "petronelle", "petronella", "petternille", "petronille"],
+    ["birgitte", "bergitte", "birgithe", "brigitte"],
+    ["henrikke", "henrikka", "henrika", "hendrikke"],
 ]
 
 
@@ -165,12 +174,29 @@ def father_patronymic_roots(father_name: str) -> set[str]:
     tokens = clean(father_name).split()
     if not tokens:
         return set()
-    roots = set()
-    for p in {phonetic(tokens[0]), canonical_given(tokens[0])}:
-        if len(p) > 2 and p[-1] in "eai":
-            p = p[:-1]
-        roots.add(_strip_genitive(p))
+    roots = {_name_root(p) for p in {phonetic(tokens[0]), canonical_given(tokens[0])}}
+    # every spelling of the same name gives the same patronymic (Olaf -> Olufsdatter)
+    canon = canonical_given(tokens[0])
+    roots |= {r for r, c in _ROOT_INDEX.items() if c == canon}
     return roots
+
+
+def _name_root(p: str) -> str:
+    if len(p) > 2 and p[-1] in "eai":
+        p = p[:-1]
+    return _strip_genitive(p)
+
+
+# patronymic root of every grouped given name -> the group's canonical name
+_ROOT_INDEX: dict[str, str] = {}
+for _group in _GIVEN_NAME_GROUPS:
+    for _name in _group:
+        _ROOT_INDEX.setdefault(_name_root(phonetic(_name)), phonetic(_group[0]))
+
+
+def same_patronymic_root(a: str, b: str) -> bool:
+    """Roots from the same father's name, allowing its spellings (Lars / Lauritz)."""
+    return a == b or (a in _ROOT_INDEX and _ROOT_INDEX.get(a) == _ROOT_INDEX.get(b))
 
 
 # --- similarity -----------------------------------------------------------
@@ -251,7 +277,7 @@ def surname_similarity(query_surname: str, rec_surname: str, rec_farm: str = "")
         q_pat = patronymic_root(qt)
         for rt in rec_tokens:
             r_pat = patronymic_root(rt)
-            if q_pat and r_pat and q_pat[0] == r_pat[0]:
+            if q_pat and r_pat and same_patronymic_root(q_pat[0], r_pat[0]):
                 if q_pat[1] and r_pat[1] and q_pat[1] != r_pat[1]:
                     score, h = 0.85, f"same patronymic root ({qt} / {rt}), different form"
                 else:

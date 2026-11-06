@@ -141,3 +141,48 @@ def test_labelled_note_is_not_added_to_name(tmp_path, monkeypatch):
 ])
 def test_parish_birthplaces(raw, expected):
     assert B._expand_parish(raw, "Tønset") == expected
+
+
+def test_stepchild_gets_the_wife_as_mother():
+    # the stepson is the wife's child from her first marriage; his surname
+    # names her first husband
+    ms = [Member("Anders Berg", "m", "Husfader"), Member("Sofie Berg", "f", "hans Kone"),
+          Member("Johan Lindqvist", "m", "Stedsøn"), Member("Rikard Berg", "m", "deres Søn")]
+    assign_relations(ms)
+    assert ms[2].relations == {"mother": "Sofie Berg"}
+    assert ms[3].relations == {"father": "Anders Berg", "mother": "Sofie Berg"}
+
+
+def test_stepchild_of_a_widow_gets_nothing():
+    ms = [Member("Maren Olsen", "f", "Enke"), Member("Ole Hansen", "m", "hendes Stedsøn")]
+    assign_relations(ms)
+    assert ms[1].relations == {}
+
+
+def test_parents_of_head_and_wife():
+    ms = [Member("Ole Hansen", "m", "Husfader"), Member("Kari Olsdatter", "f", "hans Kone"),
+          Member("Hans Larsen", "m", "hans Fader"), Member("Berte Nilsdatter", "f", "Svigermoder")]
+    assign_relations(ms)
+    assert ms[0].relations == {"spouse": "Kari Olsdatter", "father": "Hans Larsen"}
+    assert ms[1].relations == {"spouse": "Ole Hansen", "mother": "Berte Nilsdatter"}
+    assert ms[2].relations == {} and ms[3].relations == {}
+
+
+def test_retired_couple_are_the_heads_parents_when_the_patronymic_fits():
+    ms = [Member("Per Anton Larsson", "m", "Husbonde"), Member("Anna Olsdotter", "f", "hans Hustru"),
+          Member("Lars Persson", "m", "Føderaadsmand"), Member("Kari Johansdotter", "f", "hans Kone"),
+          Member("Erik Persson", "m", "deres Søn")]
+    assign_relations(ms)
+    assert ms[0].relations == {"spouse": "Anna Olsdotter", "father": "Lars Persson",
+                               "mother": "Kari Johansdotter"}
+    assert ms[3].relations == {"spouse": "Lars Persson"}
+    # the head's son is still the head's, not the retired couple's
+    assert ms[4].relations == {"father": "Per Anton Larsson", "mother": "Anna Olsdotter"}
+
+
+def test_retired_man_with_another_patronymic_is_not_taken_as_father():
+    ms = [Member("Ole Hansen", "m", "Husfader"), Member("Peder Nilsen", "m", "Kaarmand"),
+          Member("Marte Olsdatter", "f", "hans Kone")]
+    assign_relations(ms)
+    assert ms[0].relations == {}
+    assert ms[2].relations == {"spouse": "Peder Nilsen"}   # his wife, not the head's

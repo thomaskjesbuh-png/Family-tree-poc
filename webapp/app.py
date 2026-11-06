@@ -92,6 +92,23 @@ def _given_index(app: Flask, year: int) -> dict[str, list[Record]]:
     return index[year]
 
 
+def _namesakes(app: Flask, r: Record, house: list[Record]) -> dict:
+    """Others in the same census and municipality with the same first name,
+    sex and about the same age. None means the record picks out one person
+    there, which is evidence in
+    itself; several mean the family has to tell them apart."""
+    from ancestor_finder import names as N
+    place = r.municipality or r.parish
+    in_house = {h.record_id for h in house}
+    others = [o for o in _given_index(app, r.year).get(N.canonical_given(r.given_name), [])
+              if o.record_id != r.record_id and o.record_id not in in_house
+              and (o.municipality or o.parish) == place and (not r.sex or not o.sex or o.sex == r.sex)
+              and o.birth_year is not None and abs(o.birth_year - r.birth_year) <= 2]
+    return {"count": len(others), "place": place, "year": r.year,
+            "given_name": r.given_name.split()[0],
+            "examples": [_person_brief(o) | {"farm": o.farm} for o in others[:5]]}
+
+
 def split_families(house: list[Record]) -> list[dict]:
     """One dwelling can hold several families: start a new one at each
     husband-head, or at a wife-coded woman with no husband before her."""
@@ -413,6 +430,7 @@ def create_app(records_path: Path | str | None = None) -> Flask:
                "household": [_person_brief(h) for h in house], "elsewhere": []}
         if not r.given_name or not r.birth_year:
             return jsonify(out)
+        out["namesakes"] = _namesakes(app, r, house)
         q = PersonQuery(given_name=r.given_name, surname=r.surname, birth_year=r.birth_year, birth_year_tolerance=2,
                         sex=r.sex, father_name=r.father_name or "", mother_name=r.mother_name or "",
                         spouse_name=r.spouse_name or "")

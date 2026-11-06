@@ -17,7 +17,7 @@ the right record?** The answer goes in `reports/accuracy.md`.
 | Pipeline (search, name normalisation, scoring, ranking) | Works end to end on the fictional sample and on real Østfold census records |
 | Census importer | Any county. Imported so far: Østfold, Nord-Trøndelag and Hedmark, 1,198,969 person records from the 1801, 1865, 1900 and 1910 censuses. Booklet counts match the booklets' own totals to within 210 of 1,045,283 (0.02%) |
 | Model steps (Haiku extraction, Sonnet same-person check) | Built and tested with a fake client. **Not yet run against the real API** |
-| Unit tests | 104 passing |
+| Unit tests | 126 passing |
 | Accuracy report | Fictional: `reports/accuracy.md`. Real, from Thomas's family tree: `reports/accuracy_real.md` (private, git-ignored). 13 people with a confirmed record, searched across 1.2 million records: all 13 in the top 3, 8 first (the rest behind what is very likely the same person in an earlier census); all 4 "born after 1910" cases correctly return nothing; no wrong record rated high. Small sample, so a first signal only |
 | Live Digitalarkivet source | Intentionally not implemented: robots.txt bars AI agents |
 
@@ -74,9 +74,14 @@ Notes on the imported records:
   `https://www.digitalarkivet.no/census/person/<PFID>`. That URL pattern couldn't
   be checked from here, because Digitalarkivet bars AI agents.
 * **Inferred relations:** parents and spouse come from household position, not
-  from a stated link. Stepchildren, foster children, grandchildren, in-laws and
-  servants get no parents. A "child" whose patronymic can't come from the head's
-  name loses the inferred father. Matches that rely on inferred relations say so.
+  from a stated link. A stepchild of a married man gets the wife as mother (her
+  child from an earlier marriage); the head's own parents ("hans Fader",
+  "Mandens Moder") and the wife's ("Svigermoder") become their parents; a
+  retired couple (kårfolk, føderådsfolk) count as the head's parents only when
+  the head's patronymic fits the man's name. Foster children, grandchildren,
+  other in-laws and servants get no parents. A "child" whose patronymic can't
+  come from the head's name loses the inferred father. Matches that rely on
+  inferred relations say so.
 * **Licence:** none is stated for these files (see `docs/access-findings.md`),
   so `data/raw/` and `data/real/` are git-ignored and nothing from them is
   committed. Use them for personal testing until Nasjonalarkivet answers.
@@ -154,8 +159,12 @@ given name 0.30, surname 0.20, birth year 0.20 (±2 years), place 0.12, family 0
 Name handling (`ancestor_finder/names.py`):
 
 * spelling variants: Christine / Kristine / Kirstine, Thore / Tore, aa / å, ch / k, th / t
-* patronymics: Olsen, Olsdatter, Olsd. and Olssøn share the root "Ol". Hansen
-  vs Larsen counts as different, not as similar.
+* name groups learned from real finds: Olav / Olaf / Oluf, Mikal / Mikkel / Michael,
+  Salamon / Salomon, Hedda / Hedvig, Paul / Pål, Pernille / Petternille,
+  Birgitte / Bergitte, Henrikka / Henrikke
+* patronymics: Olsen, Olsdatter, Olsd. and Olssøn share the root "Ol", and the
+  spellings of one name give one patronymic (Larsen / Lauritzen, Olufsdatter
+  for a father written Olaf). Hansen vs Larsen counts as different, not as similar.
 * farm names as surnames: "Anders Pedersen Holm" matches "Anders Holm" and
   "Anders Pedersen" on the farm Holm
 * baptisms with no surname: the father's name in the record implies the patronymic
@@ -208,10 +217,18 @@ Samuelsen also tries Samuel), and adding him brings his parents too, two
 generations from one record; a woman sharing her husband's surname is asked
 for her maiden name; and every uncertain or empty result points to where the
 trail goes on outside Spor: the 1920 census at Digitalarkivet (all of Norway),
-Danish sources when the family has a Danish birthplace, gravestones, and
-relatives. Spor only links to those sites; it never fetches them. Nothing is added straight from a
+Digitalarkivet's person search prefilled with name and birth year (church
+books, where a baptism names both parents, and the death register 1951–2017),
+newspapers at nb.no (death notices list children and in-laws, wedding banns
+name the couple), the Swedish censuses at Riksarkivet when the family has a
+Swedish birthplace (emigrants often stayed on the Swedish rolls marked "I
+Norge"), Danish sources when the family has a Danish birthplace, gravestones,
+and relatives. These are the sources behind the real finds in Thomas's tree. Spor only links to those sites; it never fetches them. Nothing is added straight from a
 suggestion: "Undersøk nærmere" opens an investigation page that puts what the
-tree knows next to what the source says, looks for the same person with the
+tree knows next to what the source says, counts others with the same first
+name, sex and age in the same census and municipality (none is evidence in
+itself; several mean the
+family has to tell them apart), looks for the same person with the
 same family in the other censuses (`/api/investigate`; namesakes without the
 family don't count), asks questions only the family can answer (the father's
 and grandparents' names, where the family came from), and asks the reader to

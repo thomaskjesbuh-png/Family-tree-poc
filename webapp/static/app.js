@@ -530,7 +530,7 @@
       }
       let found = false;
       const dk = danishPlace(n), uncertain = !traceable(p) || afterCensus(p);
-      if (dk) group.appendChild(elsewhereCard(n));
+      if (dk || swedishPlace(n)) group.appendChild(elsewhereCard(n));
       if (!traceable(p)) {
         found = await leadsGroup(n, group, true);
         if (!found && !group.querySelector(".rel-card")) group.appendChild(livingHint(n));
@@ -540,7 +540,7 @@
         found = await relativesGroup(n, group, any);
       }
       if (found) any = true;
-      if (!dk && (!found || uncertain)) {
+      if (!dk && !swedishPlace(n) && (!found || uncertain)) {
         const e = elsewhereCard(n);
         if (found) { const d = el("details", "more-places"); d.appendChild(el("summary", null, "Andre steder å lete")); d.appendChild(e); group.appendChild(d); }
         else group.appendChild(e);
@@ -747,6 +747,20 @@
   }
 
 
+  // Swedish birthplaces: many Østfold and Trøndelag families came from Bohuslän,
+  // Värmland, Jämtland and Dalsland for the stone and timber work
+  const SE_PLACES = new Set(("sverige sverge sweden bohuslän bohuslen bohus värmland vermland jämtland jemtland dalsland härjedalen " +
+    "skee tanum ed näsinge idefjorden strömstad göteborg gøteborg stockholm nyköping södermanland sødermanland skaraborg " +
+    "älvsborg elfsborg uddevalla karlstad arvika glava stugun östersund kalmar malmö").split(" "));
+  function swedishPlace(n) {
+    for (let c = n; c >= 1; c = Math.floor(c / 2)) {
+      const bp = person(c) && person(c).birthplace;
+      if (bp && bp.toLowerCase().split(/[^a-zæøåäö]+/).some(w => SE_PLACES.has(w))) return bp;
+    }
+    return "";
+  }
+
+
   /* One suggestion at a time. The best one is shown as a card with a plain
      verdict; when several fit about equally, a question the reader may know
      the answer to narrows them down; the rest wait in a compact table. */
@@ -910,6 +924,11 @@
     const placeHit = known && (norm(c.place).includes(norm(known)) || norm(known).includes(norm(c.place)));
     rows.push(["Sted", known ? `${p.birthplace ? "Født" : "Slekta fra"} ${known}` : "Ukjent", [c.farm, c.place].filter(Boolean).join(", ") + ` (${c.year})` + (c.rec.birthplace && norm(c.rec.birthplace) !== norm(c.place) ? `, født ${c.rec.birthplace}` : ""),
       !known ? ["unknown", "Vi vet ikke hvor familien bodde"] : placeHit ? ["ok", "Samme sted"] : ["part", "Annet sted, folk flyttet"]]);
+    const ns = data.namesakes;
+    if (ns && ns.place) rows.push(["Navnelikhet", "", ns.count ? `${ns.count} ${ns.count === 1 ? "annen" : "andre"} ${ns.given_name} på samme alder i ${ns.place} i ${ns.year}` +
+        (ns.examples.length ? `: ${ns.examples.map(x => [x.name, x.farm].filter(Boolean).join(", ")).join("; ")}` : "")
+        : `Ingen andre ${ns.given_name} på samme alder i ${ns.place} i ${ns.year}`,
+      !ns.count ? ["ok", "Den eneste med dette navnet og alderen der"] : ns.count === 1 ? ["part", "Én navnelik, sjekk at du har riktig"] : ["unknown", "Flere navnelike, familien må skille dem"]]);
     const same = data.elsewhere.filter(e => e.same_family);
     rows.push(["Andre tellinger", "", same.length ? same.map(e => `${e.year}: ${e.name}, ${e.place}`).join("; ") : "Ikke funnet med samme familie",
       same.length ? ["ok", `Samme familie i ${same.map(e => e.year).join(" og ")}`] : ["unknown", "Ingen bekreftelse fra andre år"]]);
@@ -1049,6 +1068,22 @@
     if (!dk && by && by <= 1960) items.push(["Folketellingen 1920",
       (by <= 1920 ? `${first(p)} står trolig selv i folketellingen 1920, sammen med foreldrene.` : `Foreldrene til ${first(p)} var trolig ${by - 1920 > 25 ? "barn" : "unge"} i 1920 og står i folketellingen det året.`) +
       " Den dekker hele landet og er søkbar hos Digitalarkivet, men er ikke i Spor ennå.", "https://www.digitalarkivet.no/census/search/1920", "digitalarkivet.no"]);
+    const se = swedishPlace(n);
+    if (se) items.push(["Svenske folketellinger", `${se} ligger i Sverige. Riksarkivet har gratis søk i de svenske folketellingene 1880, 1890, 1900, 1910 og 1930, med foreldre og søsken i samme hus. ` +
+      "Svensker som flyttet til Norge ble ofte aldri meldt ut, og står fortsatt hjemme med merknaden «I Norge» eller i boka over fraværende. " +
+      "Digitalarkivet har også registeret «Innflyttede svensker til Østfold 1812–1920» og statsborgerskapsbevillinger.",
+      "https://sok.riksarkivet.se/folkrakningar", "riksarkivet.se"]);
+    if (!dk && p.given_name && (!by || by >= 1815)) {
+      const q = new URLSearchParams({ firstname: first(p), lastname: (p.surname || "").split(" ").pop() });
+      if (by) { q.set("birth_year_from", by - 2); q.set("birth_year_to", by + 2); }
+      items.push(["Kirkebøker og dødsregister", `Dåpen gir begge foreldrene, vielsen fedrene, og registeret over døde 1951–2017 gir fødsels- og dødsdato. ` +
+        `Søket hos Digitalarkivet er fylt ut for ${fullName(p)}. Prøv også andre stavemåter, og fødestedet hvis ${first(p)} kom fra et annet prestegjeld.`,
+        `https://www.digitalarkivet.no/search/persons/advanced?${q}`, "digitalarkivet.no"]);
+    }
+    if (!dk && p.given_name && p.surname && (!by || (by >= 1840 && by <= 1990))) items.push(["Gamle aviser",
+      `Dødsannonser lister barn og svigerbarn, og lysninger nevner brudeparet med bosted og yrke. Søk etter «${fullName(p)}» i avisene hos Nasjonalbiblioteket. ` +
+      "Nyere aviser kan bare leses fra Norge.",
+      `https://www.nb.no/search?${new URLSearchParams({ q: `"${fullName(p)}"`, mediatype: "aviser" })}`, "nb.no"]);
     if (!dk && (!by || by > CUTOFF || p.birth_year_estimated)) items.push(["Gravminner",
       `Gravsteiner viser fødsels- og dødsår. Søk etter ${fullName(p)} i gravminnebasen til Slekt og Data.`, "https://www.slektogdata.no/gravminner", "slektogdata.no"]);
     items.push(["Spør i familien", `Eldre slektninger, dødsannonser, gamle brev og konfirmasjonsbilder gir ofte fødselsår, fødested og pikenavn. Det er nøkkelen til neste spor.`]);

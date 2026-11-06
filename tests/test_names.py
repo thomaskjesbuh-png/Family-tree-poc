@@ -78,3 +78,20 @@ def test_place_key_same(a, b):
 @pytest.mark.parametrize("a,b", [("Borge", "Berg"), ("Skjeberg", "Spydeberg"), ("Nes", "Nesodden")])
 def test_place_key_different(a, b):
     assert names.place_key(a) != names.place_key(b) or len(names.place_key(a)) < 4
+
+
+import pytest as _pytest
+
+
+@_pytest.mark.parametrize("a,b", [("Hedda", "Hedvig"), ("Paul", "Pål"), ("Petternille", "Pernille"),
+                                  ("Oluf", "Olaf"), ("Mikal", "Michael"), ("Salamon", "Salomon"),
+                                  ("Bergitte", "Birgitte"), ("Henrikka", "Henrikke")])
+def test_spellings_seen_in_real_finds(a, b):
+    from ancestor_finder.names import given_name_similarity
+    assert given_name_similarity(a, b) == 1.0
+
+
+def test_oluf_patronymic_fits_olaf():
+    # a daughter written Olufsdatter whose father is written Olaf elsewhere
+    from ancestor_finder.names import father_patronymic_roots, patronymic_root
+    assert patronymic_root("Olufsdatter")[0] in father_patronymic_roots("Olaf Hansen")
