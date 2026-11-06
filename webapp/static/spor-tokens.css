@@ -1,0 +1,87 @@
+/* Spor design system tokens, generated from its tokens.json (do not edit by hand;
+   regenerate from https://claude.ai/artifact/HYYfBZ8zAjUJN3CqMxQtjA). */
+:root {
+  --surface: #f3f2ee;
+  --surface-raised: #fbfbf9;
+  --surface-sunken: #e8e6df;
+  --line: #d6d3c9;
+  --line-strong: #7c868d;
+  --ink: #22303a;
+  --ink-muted: #56626b;
+  --fjord: #2e4a5e;
+  --fjord-soft: #dce5eb;
+  --on-fjord: #ffffff;
+  --moss: #46643f;
+  --moss-soft: #e0e8d9;
+  --amber: #985020;
+  --amber-soft: #f2e3d3;
+  --on-amber: #ffffff;
+  --clay: #a03a2d;
+  --clay-soft: #f5e0dc;
+  --link: #2e4a5e;
+  --focus: #2e4a5e;
+  --shadow-paper: 0 1px 2px rgba(34,48,58,0.08), 0 4px 12px rgba(34,48,58,0.06);
+  --font-serif: "Literata", "Iowan Old Style", Georgia, serif;
+  --font-sans: "Schibsted Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", "SF Mono", Menlo, monospace;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 16px;
+  --radius-full: 999px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --surface: #161a1c;
+    --surface-raised: #1e2326;
+    --surface-sunken: #101315;
+    --line: #343b3f;
+    --line-strong: #6b767d;
+    --ink: #e6eaeb;
+    --ink-muted: #a3adb3;
+    --fjord: #8cb0c6;
+    --fjord-soft: #1d2c36;
+    --on-fjord: #121618;
+    --moss: #9cbd92;
+    --moss-soft: #1e2b1c;
+    --amber: #e3a26a;
+    --amber-soft: #3a2617;
+    --on-amber: #161a1c;
+    --clay: #ec8f82;
+    --clay-soft: #3b1d19;
+    --link: #8cb0c6;
+    --focus: #8cb0c6;
+    --shadow-paper: 0 1px 2px rgba(0,0,0,0.4);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --surface: #161a1c;
+  --surface-raised: #1e2326;
+  --surface-sunken: #101315;
+  --line: #343b3f;
+  --line-strong: #6b767d;
+  --ink: #e6eaeb;
+  --ink-muted: #a3adb3;
+  --fjord: #8cb0c6;
+  --fjord-soft: #1d2c36;
+  --on-fjord: #121618;
+  --moss: #9cbd92;
+  --moss-soft: #1e2b1c;
+  --amber: #e3a26a;
+  --amber-soft: #3a2617;
+  --on-amber: #161a1c;
+  --clay: #ec8f82;
+  --clay-soft: #3b1d19;
+  --link: #8cb0c6;
+  --focus: #8cb0c6;
+  --shadow-paper: 0 1px 2px rgba(0,0,0,0.4);
+  color-scheme: dark;
+}

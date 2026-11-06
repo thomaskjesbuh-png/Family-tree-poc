@@ -1,106 +1,102 @@
-{% set first = person.given_name %}
-{% set full = (person.given_name ~ " " ~ (person.surname or "")).strip() %}
+{% set first = (person.given_name or "").split(" ")[0] %}
+{% set full = ((person.given_name or "") ~ " " ~ (person.surname or "")).strip() %}
+{% set pron = "Han" if person.sex == "m" else ("Hun" if person.sex == "f" else first) %}
 <!doctype html>
-<html lang="en">
+<html lang="nb">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{ full }}: a chapter</title>
+<title>{{ full }}: et kapittel</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400&family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,400;7..72,500&family=Schibsted+Grotesk:wght@400;600&family=IBM+Plex+Mono&display=swap">
+<link rel="stylesheet" href="{{ url_for('static', filename='spor-tokens.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='spor-components.css') }}">
 <style>
-  :root { --birch: #F6F2EA; --paper: #FFFDF8; --slate: #2C3A45; --slate-soft: #5D6B75; --faint: #8C979E;
-          --rule: #DCD4C4; --moss: #5E7350; --amber: #B0632A;
-          --serif: "Fraunces", "Iowan Old Style", Palatino, Georgia, serif; --sans: "Inter", system-ui, sans-serif; }
-  * { box-sizing: border-box; }
-  body { margin: 0; background: var(--birch); color: var(--slate); font: 16px/1.65 var(--sans); }
-  .page { max-width: 680px; margin: 40px auto; background: var(--paper); padding: 56px 64px 64px; box-shadow: 0 1px 0 var(--rule), 0 10px 40px rgba(44,58,69,.07); }
-  @media (max-width: 720px) { .page { margin: 0; padding: 32px 20px 48px; box-shadow: none; } }
-  h1, h2, h3 { font-family: var(--serif); font-weight: 400; line-height: 1.15; margin: 0; }
-  .toolbar { max-width: 680px; margin: 24px auto -16px; display: flex; justify-content: flex-end; padding: 0 16px; }
-  .toolbar button { font: 500 14px var(--sans); padding: 8px 16px; border-radius: 999px; border: 1px solid var(--amber); background: var(--amber); color: var(--paper); cursor: pointer; }
-  .notice { font-size: 13px; color: var(--slate-soft); border-left: 3px solid var(--amber); padding: 6px 12px; margin: 0 0 32px; }
-  .opener { text-align: center; margin-bottom: 36px; }
-  .opener svg { width: 78%; max-width: 420px; height: auto; color: var(--slate); margin-bottom: 20px; }
-  .kicker { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--moss); margin: 0 0 10px; }
-  .opener h1 { font-size: 44px; }
-  .opener .dates { color: var(--slate-soft); margin: 10px 0 0; font-variant-numeric: tabular-nums; }
-  .intro { font-family: var(--serif); font-size: 19px; line-height: 1.6; margin: 0 0 36px; }
-  .intro::first-letter { font-size: 3.1em; float: left; line-height: .9; padding: 4px 8px 0 0; color: var(--moss); }
-  section.census { margin: 0 0 36px; break-inside: avoid; }
-  .census .when { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--moss); margin: 0 0 4px; font-variant-numeric: tabular-nums; }
-  .census h2 { font-size: 26px; margin-bottom: 6px; }
-  .census .line { color: var(--slate-soft); margin: 0 0 14px; }
-  table { width: 100%; border-collapse: collapse; font-size: 14px; }
-  th { text-align: left; font-weight: 500; color: var(--faint); border-bottom: 1px solid var(--rule); padding: 4px; }
-  td { border-bottom: 1px dotted var(--rule); padding: 5px 4px; font-variant-numeric: tabular-nums; }
-  tr.me td { color: var(--moss); font-weight: 600; }
-  .clues { margin: 12px 0 0; padding: 0; list-style: none; font-size: 13.5px; color: var(--slate-soft); }
-  .clues li { padding-left: 16px; position: relative; }
-  .clues li::before { content: "·"; position: absolute; left: 4px; color: var(--moss); font-weight: 700; }
-  sup { color: var(--amber); font-size: 11px; }
-  .open-q { border-top: 1px solid var(--rule); padding-top: 20px; margin-top: 8px; }
-  .open-q h3 { font-size: 20px; margin-bottom: 6px; }
-  .open-q p { margin: 0; color: var(--slate-soft); }
-  .sources { border-top: 1px solid var(--rule); margin-top: 32px; padding-top: 14px; font-size: 13px; color: var(--slate-soft); }
-  .sources h3 { font-family: var(--sans); font-size: 11.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); margin-bottom: 8px; font-weight: 600; }
-  .sources ol { margin: 0; padding-left: 18px; }
-  .sources a { color: var(--slate-soft); overflow-wrap: anywhere; }
-  .method { font-size: 12.5px; color: var(--faint); margin-top: 24px; }
-  @page { size: A5; margin: 16mm 14mm; }
-  @media print { body { background: #fff; } .toolbar { display: none; } .page { margin: 0; padding: 0; box-shadow: none; max-width: none; } }
+  /* StoryPage from the Spor design system, scaled from the A5 reference to a readable screen page. */
+  body { background: var(--surface-sunken); padding: var(--space-8) var(--space-4); }
+  .chrome { max-width: 640px; margin: 0 auto var(--space-4); display: flex; justify-content: space-between; align-items: center; gap: var(--space-4); }
+  .chrome p { margin: 0; color: var(--ink-muted); font-size: 13px; line-height: 18px; }
+  .book { max-width: 640px; margin: 0 auto; background: var(--surface); color: var(--ink); border: 1px solid var(--line);
+    box-shadow: var(--shadow-paper); padding: 72px 64px 40px; }
+  @media (max-width: 680px) { body { padding: 0; } .chrome { padding: var(--space-4); margin: 0; } .book { padding: 40px 24px 28px; border: 0; } }
+  .chap { font: 600 12px/16px var(--font-sans); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-muted); margin: 0 0 var(--space-3); }
+  h1 { font-family: var(--font-serif); font-weight: 400; font-size: 56px; line-height: 60px; letter-spacing: -.01em; margin: 0 0 var(--space-6); text-wrap: balance; }
+  @media (max-width: 680px) { h1 { font-size: 40px; line-height: 44px; } }
+  .sp-art { margin: 0 0 var(--space-8); }
+  .story p { font-family: var(--font-serif); font-size: 19px; line-height: 31px; margin: 0 0 var(--space-4); max-width: 65ch; }
+  .story p.lead::first-letter { font-size: 64px; line-height: 52px; float: left; padding: 6px 8px 0 0; font-weight: 500; }
+  h2 { font-family: var(--font-serif); font-weight: 500; font-size: 22px; line-height: 28px; margin: var(--space-8) 0 var(--space-2); }
+  .story p.when { font: 600 12px/16px var(--font-sans); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-muted); margin: var(--space-8) 0 0; font-variant-numeric: tabular-nums; }
+  .story .when + h2 { margin-top: var(--space-1); }
+  table { width: 100%; border-collapse: collapse; font: 400 14px/20px var(--font-sans); margin: var(--space-3) 0 0; }
+  th { text-align: left; font-weight: 600; color: var(--ink-muted); border-bottom: 1px solid var(--line); padding: 3px 4px; }
+  td { border-bottom: 1px solid var(--line); padding: 4px; }
+  td:nth-child(2) { font-variant-numeric: tabular-nums; }
+  tr.me td { font-weight: 600; }
+  sup { font: 400 11px var(--font-sans); color: var(--ink-muted); }
+  .notes { margin-top: var(--space-12); border-top: 1px solid var(--line); padding-top: var(--space-4); }
+  .notes h3 { font: 600 12px/16px var(--font-sans); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-muted); margin: 0 0 var(--space-2); }
+  .notes ol { margin: 0; padding-left: 20px; }
+  .notes li { margin-bottom: var(--space-1); }
+  .notes a { color: var(--ink-muted); overflow-wrap: anywhere; }
+  .method { font: 400 13px/19px var(--font-sans); color: var(--ink-muted); margin-top: var(--space-6); }
+  .folio { text-align: center; font: 400 14px/20px var(--font-sans); color: var(--ink-muted); margin-top: var(--space-8); font-variant-numeric: tabular-nums; }
+  @page { size: A5; margin: 18mm 15mm 14mm; }
+  @media print {
+    body { background: var(--surface); padding: 0; }
+    .chrome { display: none; }
+    .book { box-shadow: none; border: 0; padding: 0; max-width: none; }
+    h1 { font-size: 34px; line-height: 38px; }
+    .story p { font-size: 11pt; line-height: 17pt; }
+  }
 </style>
 </head>
 <body>
-<div class="toolbar"><button onclick="window.print()">Print or save as PDF</button></div>
-<article class="page">
-  {% if not status.commercial_cleared or status.demo %}
-  <p class="notice">{% if status.demo %}An example chapter: everyone in it is invented. {% endif %}{% if not status.commercial_cleared %}Prototype output; the archive data isn't cleared for paid use yet.{% endif %}</p>
-  {% endif %}
+<div class="chrome">
+  <p>{% if status.demo %}Et eksempelkapittel: alle her er oppdiktet. {% endif %}{% if not status.commercial_cleared %}Prototype; arkivdataene er ikke avklart for betalt bruk ennå.{% endif %}</p>
+  <button class="sp-btn" type="button" onclick="window.print()">Skriv ut eller lagre som PDF</button>
+</div>
+<article class="book">
+  <p class="chap">Et kapittel i The Book of Me</p>
+  <h1>{{ full }}</h1>
+  <div class="sp-art">{% include "_art_farm.html" %}</div>
 
-  <header class="opener">
-    {% include "_drawing_farm.html" %}
-    <p class="kicker">A chapter for The Book of Me</p>
-    <h1>{{ full }}</h1>
-    <p class="dates">Born about {{ person.birth_year }}{% if person.birthplace %} · {{ person.birthplace }}{% endif %}{% if person.county %}, {{ person.county }}{% endif %}</p>
-  </header>
-
+  <div class="story">
   {% if confirmed %}
-  {% set firstrec = confirmed[0].record %}{% set lastrec = confirmed[-1].record %}
-  <p class="intro">{{ first.split(" ")[0] }} can be followed through {{ confirmed|length }} census{{ "" if confirmed|length == 1 else "es" }}{% if confirmed|length > 1 %}, from {{ firstrec.year }} at {{ firstrec.farm or (firstrec.municipality or firstrec.parish) }} to {{ lastrec.year }} at {{ lastrec.farm or (lastrec.municipality or lastrec.parish) }}{% else %}, in {{ firstrec.year }} at {{ firstrec.farm or (firstrec.municipality or firstrec.parish) }}{% endif %}{% if person.spouse_name %}, with {{ person.spouse_name }} as a companion along the way{% endif %}. Each entry below is a record you chose to keep.</p>
+    {% set a = confirmed[0].record %}{% set b = confirmed[-1].record %}
+    {% set pa = a.farm or a.municipality or a.parish %}{% set pb = b.farm or b.municipality or b.parish %}
+    <p class="lead">{{ first }} ble født omkring {{ person.birth_year }}{% if person.birthplace %} i {{ person.birthplace }}{% endif %}.
+      {% if confirmed|length > 1 %}Vi kan følge {{ "ham" if person.sex == "m" else ("henne" if person.sex == "f" else first) }} gjennom {{ confirmed|length }} folketellinger, fra {{ a.year }} på {{ pa }} til {{ b.year }} på {{ pb }}{% else %}{{ pron }} står i folketellingen {{ a.year }} på {{ pa }}{% endif %}{% if person.spouse_name %}, med {{ person.spouse_name }} ved sin side{% endif %}.</p>
   {% else %}
-  <p class="intro">No records have been kept yet. This chapter is still waiting for its first clue.</p>
+    <p class="lead">Dette kapittelet venter fortsatt på sitt første spor.</p>
   {% endif %}
 
   {% for c in confirmed %}{% set r = c.record %}
-  <section class="census">
-    <p class="when">{{ r.year }} census</p>
-    <h2>{{ r.farm or (r.municipality or r.parish) or "An unnamed place" }}{% if r.farm and (r.municipality or r.parish) %}, {{ r.municipality or r.parish }}{% endif %}<sup>{{ loop.index }}</sup></h2>
-    <p class="line">Listed as {{ r.full_name }}{% if r.role %} («{{ r.role }}»){% endif %}, born {{ r.birth_year or "?" }}{% if r.birthplace %} in {{ r.birthplace }}{% endif %}.</p>
+    <p class="when">Folketellingen {{ r.year }}</p>
+    <h2>{{ r.farm or r.municipality or r.parish or "Et ukjent sted" }}{% if r.farm and (r.municipality or r.parish) %}, {{ r.municipality or r.parish }}{% endif %}<sup>{{ loop.index }}</sup></h2>
+    <p>{{ pron }} er oppført som {{ r.full_name }}{% if r.role %}, «{{ r.role }}»{% endif %}, født {{ r.birth_year or "?" }}{% if r.birthplace %} i {{ r.birthplace }}{% endif %}.{% if c.household|length > 1 %} {{ c.household|length - 1 }} {{ "annen" if c.household|length == 2 else "andre" }} bodde samme sted:{% endif %}</p>
     {% if c.household|length > 1 %}
-    <table><thead><tr><th>Living here</th><th>Born</th><th>Birthplace</th><th>Listed as</th></tr></thead><tbody>
+    <table><thead><tr><th>Navn</th><th>Født</th><th>Fødested</th><th>Oppført som</th></tr></thead><tbody>
       {% for h in c.household %}<tr class="{{ 'me' if h.record_id == r.record_id }}"><td>{{ h.full_name }}</td><td>{{ h.birth_year or "?" }}</td><td>{{ h.birthplace }}</td><td>{{ h.role }}</td></tr>{% endfor %}
     </tbody></table>
     {% endif %}
-    {% if c.reasons %}<ul class="clues">{% for x in c.reasons %}<li>{{ x }}</li>{% endfor %}</ul>{% endif %}
-  </section>
   {% endfor %}
 
-  <div class="open-q">
-    <h3>Still a mystery</h3>
-    <p>Censuses tell us where someone lived on one night, not the whole story. Church books, emigration lists and family letters can fill the years in between.{% if rejected %} {{ rejected }} possible record{{ "" if rejected == 1 else "s" }} {{ "was" if rejected == 1 else "were" }} set aside as someone else.{% endif %}</p>
+    <h2>Fortsatt et mysterium</h2>
+    <p>En folketelling viser hvor noen bodde én natt, ikke hele livet. Kirkebøker, emigrantprotokoller og gamle brev kan fylle årene imellom.{% if rejected %} {{ rejected }} {{ "mulig post" if rejected == 1 else "mulige poster" }} ble lagt til side som en annen person.{% endif %}</p>
   </div>
 
   {% if confirmed %}
-  <div class="sources">
-    <h3>Sources</h3>
-    <ol>{% for c in confirmed %}{% set r = c.record %}
-      <li>{{ r.source }}. Entry {{ r.record_id }}.{% if c.link %} <a href="{{ c.link }}">{{ c.link }}</a>{% endif %}</li>{% endfor %}
+  <section class="notes">
+    <h3>Kilder</h3>
+    <ol class="sp-source">{% for c in confirmed %}{% set r = c.record %}
+      <li>{{ r.source }} · {{ r.record_id }}{% if c.link %} · <a href="{{ c.link }}">{{ c.link }}</a>{% endif %}</li>{% endfor %}
     </ol>
-  </div>
+  </section>
   {% endif %}
-  <p class="method">How these records were found: every census entry was weighed on first name, surname (including patronymics and farm names), birth year, birthplace and family, and each record here was kept by the person who searched. Birth years from the 1801 and 1865 censuses come from stated ages and can be a year off. Parents and spouses are read from the household lists. Census transcriptions: Nasjonalarkivet (Arkivverket). Written {{ generated }}.</p>
+  <p class="method">Slik ble postene funnet: hver oppføring i folketellingene ble vurdert på fornavn, etternavn (med farsnavn og gårdsnavn), fødselsår, fødested og familie, og hver post her ble lagt til av den som søkte. Fødselsår fra 1801 og 1865 er regnet ut fra oppgitt alder og kan bomme med et år. Foreldre og ektefelle er lest ut fra husstandslistene. Transkripsjoner: Nasjonalarkivet (Arkivverket). Skrevet {{ generated }}.</p>
+  <p class="folio">1</p>
 </article>
 </body>
 </html>

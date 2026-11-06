@@ -1,74 +1,81 @@
-/* Start with you, grow the tree backwards, follow each ancestor's trail.
-   The tree lives in this browser (localStorage). People are numbered the
-   genealogist's way (ahnentafel): you are 1, the father of n is 2n and the
-   mother is 2n+1, so a person's generation and relatives follow from the number. */
+/* Spor: start med deg, bygg treet bakover, følg sporet til hver forfar.
+   Treet lagres i nettleseren (localStorage) med ahnentafel-nummer:
+   du er 1, far til n er 2n og mor er 2n+1. */
 (() => {
   "use strict";
   const $ = (s, el = document) => el.querySelector(s);
   const S = window.AF_STATUS, CUTOFF = S.cutoff_year;
-  const PART = { "given name": "First name", surname: "Surname", "birth year": "Birth year", place: "Place", family: "Family" };
-  const CONF = { high: ["Strong match", "strong"], medium: ["Possible match", "possible"], low: ["Faint trace", "faint"] };
-  const GEN = ["You", "Parents", "Grandparents", "Great-grandparents"];
-  const genName = g => GEN[g] || `${g - 2}× great-grandparents`;
-  const KEY = "af:tree:v1";
+  const KEY = "af:tree:v1", FOCUS_KEY = "af:focus:v1";
 
-  /* ---------------- state ---------------- */
-  let tree = load();            // { "1": person, "2": person, ... }
-  let active = null;            // number of the person whose trail is open
-  let current = null;           // last search response
+  /* ---------------- tilstand ---------------- */
+  let tree = loadJSON(KEY, {});
+  let focus = Number(loadJSON(FOCUS_KEY, 1)) || 1;
+  let active = null;     // personen hvis spor er åpent
+  let current = null;    // siste søkesvar
+  let weakerOpen = false;
 
-  function load() { try { return JSON.parse(localStorage.getItem(KEY) || "null") || {}; } catch { return {}; } }
-  function save() { try { localStorage.setItem(KEY, JSON.stringify(tree)); } catch { /* storage off */ } }
+  function loadJSON(k, d) { try { const v = JSON.parse(localStorage.getItem(k)); return v ?? d; } catch { return d; } }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(tree)); localStorage.setItem(FOCUS_KEY, JSON.stringify(focus)); } catch { /* lagring av */ } }
 
   const person = n => tree[String(n)];
   const gen = n => Math.floor(Math.log2(n));
   const fullName = p => [p.given_name, p.surname].filter(Boolean).join(" ");
-  const first = p => (p.given_name || "").split(" ")[0];
+  const first = p => ((p && p.given_name) || "").split(" ")[0];
   const sexOf = n => (n === 1 ? "" : n % 2 === 0 ? "m" : "f");
   const traceable = p => p && p.birth_year && Number(p.birth_year) <= CUTOFF;
-  const keptCount = p => Object.values((p && p.kept) || {}).filter(d => d.status === "confirmed").length;
+  const keptOf = p => Object.entries((p && p.kept) || {}).filter(([, d]) => d.status === "confirmed");
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+  /* text with each run of digits in <span class="num">, so only digits get tabular figures */
+  const nums = (tag, cls, text) => {
+    const e = el(tag, cls);
+    String(text ?? "").split(/(\d+)/).forEach((part, i) => { if (part) e.appendChild(i % 2 ? el("span", "num", part) : document.createTextNode(part)); });
+    return e;
+  };
+  const art = id => $("#" + id).content.firstElementChild.cloneNode(true);
+  const pronoun = sex => (sex === "m" ? "Han" : sex === "f" ? "Hun" : "Personen");
 
   function relationLabel(n) {
-    if (n === 1) return "You";
-    const child = person(Math.floor(n / 2));
-    const role = n % 2 === 0 ? "Father" : "Mother";
-    if (Math.floor(n / 2) === 1) return `Your ${role.toLowerCase()}`;
-    return child ? `${role} of ${first(child)}` : role;
+    if (n === 1) return "Deg";
+    const c = Math.floor(n / 2), role = n % 2 === 0 ? "far" : "mor";
+    if (c === 1) return `Din ${role}`;
+    return `${role === "far" ? "Far" : "Mor"} til ${first(person(c))}`;
   }
 
-  /* what the tree knows about a person, as a search */
   function queryFor(n) {
-    const p = person(n), f = person(2 * n), m = person(2 * n + 1);
-    const partner = n > 1 ? person(n ^ 1) : null;      // the other parent of their child
+    const p = person(n), f = person(2 * n), m = person(2 * n + 1), partner = n > 1 ? person(n ^ 1) : null;
     return {
-      given_name: p.given_name || "", surname: p.surname || "", birth_year: p.birth_year || "",
-      birthplace: p.birthplace || "", sex: sexOf(n), birth_year_tolerance: "2",
-      father_name: f ? fullName(f) : "", mother_name: m ? fullName(m) : "",
-      spouse_name: partner ? fullName(partner) : "", county: "", name_variants: "",
+      given_name: p.given_name || "", surname: p.surname || "", birth_year: p.birth_year || "", birthplace: p.birthplace || "",
+      sex: sexOf(n), birth_year_tolerance: "2", county: "", name_variants: "",
+      father_name: f ? fullName(f) : "", mother_name: m ? fullName(m) : "", spouse_name: partner ? fullName(partner) : "",
     };
   }
 
-  /* ---------------- views ---------------- */
-  function show(view) {
-    for (const id of ["start-view", "tree-view", "search-view"]) $("#" + id).hidden = id !== view;
-    window.scrollTo(0, 0);
+  /* ---------------- merker (ConfidenceBadge) ---------------- */
+  const BADGE = {
+    confirmed: ["Bekreftet", '<circle cx="8" cy="8" r="6.25"/><path d="M5.3 8.2l1.8 1.8 3.6-3.8"/>', 'stroke-linecap="round" stroke-linejoin="round"'],
+    probable: ["Sannsynlig", '<circle cx="8" cy="8" r="6.25"/><path d="M8 1.75a6.25 6.25 0 0 1 0 12.5z" fill="currentColor" stroke="none"/>', ""],
+    unverified: ["Ubekreftet", '<circle cx="8" cy="8" r="6.25"/>', 'stroke-dasharray="2.4 2.4"'],
+    conflict: ["Motstridende kilder", '<circle cx="8" cy="8" r="6.25"/><path d="M8 4.8v3.6M8 11h0"/>', 'stroke-linecap="round"'],
+  };
+  function badge(kind) {
+    const [word, inner, extra] = BADGE[kind];
+    const s = el("span", `sp-badge sp-badge-${kind}`);
+    s.innerHTML = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" ${extra} aria-hidden="true">${inner}</svg>${word}`;
+    return s;
   }
+  const CHECK = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="6.25"/><path d="M5.3 8.2l1.8 1.8 3.6-3.8"/></svg>';
 
+  /* ---------------- visninger ---------------- */
+  function show(view) { for (const id of ["start-view", "tree-view", "search-view"]) $("#" + id).hidden = id !== view; window.scrollTo(0, 0); }
   function route() {
     if (!person(1)) { show("start-view"); return; }
-    renderTree(); show("tree-view");
+    if (!person(focus)) focus = 1;
+    renderTree(); renderPane(); show("tree-view");
+    const node = $(`.tnode[data-n="${focus}"]`); if (node) node.scrollIntoView({ block: "nearest", inline: "center" });
   }
 
-  /* ---------------- start ---------------- */
-  $("#start-form").addEventListener("submit", ev => {
-    ev.preventDefault();
-    const d = Object.fromEntries(new FormData(ev.target).entries());
-    if (!d.given_name.trim()) { ev.target.elements.given_name.focus(); return; }
-    tree = { "1": clean(d) };
-    save(); route();
-  });
-
-  function clean(d) {
+  function cleanPerson(d) {
     const p = {};
     for (const k of ["given_name", "surname", "birth_year", "birthplace", "death_year"]) {
       const v = (d[k] || "").trim();
@@ -77,251 +84,392 @@
     return p;
   }
 
-  /* ---------------- tree ---------------- */
+  $("#start-form").addEventListener("submit", ev => {
+    ev.preventDefault();
+    const d = cleanPerson(Object.fromEntries(new FormData(ev.target).entries()));
+    if (!d.given_name) { ev.target.elements.given_name.focus(); return; }
+    tree = { "1": d }; focus = 1; save(); route();
+  });
+
+  /* ---------------- treet (FamilyTree): eldste generasjon øverst ---------------- */
+  const W = 164, H = 56, GX = 16, GY = 44;
   function renderTree() {
     const host = $("#tree");
     host.innerHTML = "";
-    const nums = Object.keys(tree).map(Number);
-    const maxGen = Math.max(...nums.map(gen));
-    for (let g = 0; g <= maxGen + 1; g++) {
-      const col = document.createElement("section");
-      col.className = "gen";
-      const h = document.createElement("h2");
-      h.textContent = genName(g);
-      col.appendChild(h);
-      let any = false;
-      for (let n = 2 ** g; n < 2 ** (g + 1); n++) {
-        const p = person(n);
-        if (p) { col.appendChild(personCard(n, p)); any = true; }
-        else if (person(Math.floor(n / 2)) && n > 1) { col.appendChild(addSlot(n)); any = true; }
-      }
-      if (any) host.appendChild(col);
+    const ids = Object.keys(tree).map(Number);
+    const maxGen = Math.max(...ids.map(gen));
+    const x = {};
+    let slot = 0;
+    (function place(n) {
+      const ps = [2 * n, 2 * n + 1].filter(p => person(p));
+      ps.forEach(place);
+      x[n] = ps.length ? ps.reduce((a, p) => a + x[p], 0) / ps.length : (slot++) * (W + GX);
+    })(1);
+    const y = n => (maxGen - gen(n)) * (H + GY);
+    const width = Math.max(slot * (W + GX) - GX, W), height = (maxGen + 1) * (H + GY) - GY;
+    host.style.width = width + "px"; host.style.height = height + "px";
+
+    let d = "";
+    for (const n of ids) {
+      const ps = [2 * n, 2 * n + 1].filter(p => person(p));
+      if (!ps.length) continue;
+      const bar = y(ps[0]) + H + GY / 2;
+      for (const p of ps) d += `M${x[p] + W / 2} ${y(p) + H}V${bar}`;
+      if (ps.length === 2) d += `M${x[ps[0]] + W / 2} ${bar}H${x[ps[1]] + W / 2}`;
+      d += `M${x[n] + W / 2} ${bar}V${y(n)}`;
+    }
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("class", "tree-lines"); svg.setAttribute("width", width); svg.setAttribute("height", height);
+    svg.setAttribute("aria-hidden", "true");
+    svg.innerHTML = `<path d="${d}"/>`;
+    host.appendChild(svg);
+
+    for (const n of ids.sort((a, b) => a - b)) {
+      const p = person(n);
+      const b = el("button", "tnode" + (n === focus ? " active" : ""));
+      b.type = "button"; b.dataset.n = n;
+      b.style.left = x[n] + "px"; b.style.top = y(n) + "px";
+      b.setAttribute("aria-pressed", String(n === focus));
+      b.setAttribute("aria-label", `${fullName(p)}, ${relationLabel(n).toLowerCase()}`);
+      b.appendChild(el("span", "tn", fullName(p) || "(uten navn)"));
+      const ty = el("span", "ty");
+      const yrs = p.birth_year ? (p.death_year ? `${p.birth_year}–${p.death_year}` : `${p.birth_year}–`) : "?";
+      ty.appendChild(nums("span", null, yrs));
+      if (keptOf(p).length) { const ic = el("span"); ic.innerHTML = CHECK; ic.title = "Funnet i kildene"; ty.appendChild(ic); }
+      b.appendChild(ty);
+      b.addEventListener("click", () => { focus = n; save(); renderTree(); renderPane(); });
+      host.appendChild(b);
     }
   }
 
-  function personCard(n, p) {
-    const el = document.createElement("article");
-    el.className = "pcard";
-    const rel = document.createElement("p"); rel.className = "rel"; rel.textContent = relationLabel(n);
-    const nm = document.createElement("h3"); nm.textContent = fullName(p) || "(no name)";
-    const yrs = document.createElement("p"); yrs.className = "yrs num";
-    yrs.textContent = [p.birth_year ? (p.death_year ? `${p.birth_year}–${p.death_year}` : `born ${p.birth_year}`) : "", p.birthplace].filter(Boolean).join(" · ") || "Birth year unknown";
-    const st = document.createElement("p"); st.className = "state";
-    const kept = keptCount(p);
-    if (!p.birth_year) { st.textContent = "Add a birth year to see if we can trace them"; st.classList.add("muted-state"); }
-    else if (!traceable(p)) { st.textContent = "Living memory"; st.classList.add("muted-state"); }
-    else if (kept) { st.textContent = `${kept} record${kept === 1 ? "" : "s"} kept`; st.classList.add("kept-state"); }
-    else { st.textContent = "Ready to trace"; st.classList.add("ready-state"); }
-    const acts = document.createElement("div"); acts.className = "pacts";
-    if (traceable(p)) acts.appendChild(btn(kept ? "Continue the trail" : "Follow the trail", "primary small", () => openTrail(n)));
-    if (kept) acts.appendChild(btn("Read the chapter", "small", () => chapter(n)));
-    acts.appendChild(btn("Edit", "quiet small", () => edit(n)));
-    el.append(rel, nm, yrs, st, acts);
-    return el;
+  /* ---------------- personen (PersonCard) ---------------- */
+  function renderPane() {
+    const pane = $("#pane"), n = focus, p = person(n);
+    pane.innerHTML = "";
+    const card = el("article", "sp-card");
+    const row = el("div", "sp-person");
+    const portrait = el("div", "sp-portrait"); portrait.appendChild(art("art-portrait"));
+    const body = el("div", "sp-person-body");
+    body.appendChild(el("p", "rel", relationLabel(n)));
+    body.appendChild(el("h2", "sp-name", fullName(p) || "(uten navn)"));
+    const kept = keptOf(p);
+    if (kept.length) { const bw = el("div"); bw.appendChild(badge("confirmed")); body.appendChild(bw); }
+    const dl = el("dl", "sp-facts");
+    const fact = (k, v) => { dl.appendChild(el("dt", null, k)); dl.appendChild(nums("dd", null, v)); };
+    fact("Født", [p.birth_year || "?", p.birthplace].filter(Boolean).join(", "));
+    if (p.death_year) fact("Død", p.death_year);
+    const f = person(2 * n), m = person(2 * n + 1);
+    fact("Foreldre", f || m ? [f && fullName(f), m && fullName(m)].filter(Boolean).join(" og ") : "Ikke lagt til ennå");
+    body.appendChild(dl);
+    if (kept.length && kept[0][1].source) body.appendChild(el("div", "sp-source", kept[0][1].source));
+    row.append(portrait, body);
+    card.appendChild(row);
+
+    let state;
+    if (!p.birth_year) state = "Legg til fødselsår, så ser vi om vi kan spore personen.";
+    else if (!traceable(p)) state = `Levende minne. Personer født etter ${CUTOFF} søkes ikke opp.`;
+    else if (kept.length) state = `Funnet i ${kept.length} ${kept.length === 1 ? "kilde" : "kilder"}. Let gjerne videre.`;
+    else state = "Klar til å spores i folketellingene.";
+    card.appendChild(el("p", "state", state));
+
+    const acts = el("div", "sp-actions");
+    if (traceable(p)) acts.appendChild(btn(kept.length ? "Let videre" : "Følg sporet", "sp-btn sp-btn-primary", () => openTrail(n)));
+    if (!f) acts.appendChild(btn("Legg til far", "sp-btn", () => edit(2 * n)));
+    if (!m) acts.appendChild(btn("Legg til mor", "sp-btn", () => edit(2 * n + 1)));
+    acts.appendChild(btn("Endre", "sp-btn", () => edit(n)));
+    if (kept.length) acts.appendChild(btn("Les kapittelet", "sp-btn sp-btn-quiet", () => chapter(n)));
+    card.appendChild(acts);
+    pane.appendChild(card);
+
+    if (kept.length) {
+      const sec = el("section", "sp-card");
+      sec.appendChild(el("h3", "sp-eyebrow sp-muted", "Funnet i kildene"));
+      const ul = el("ul", "found");
+      for (const [, d] of kept.sort((a, b) => (a[1].year || 0) - (b[1].year || 0))) {
+        const li = el("li");
+        li.appendChild(nums("span", "data", [d.year && `Folketellingen ${d.year}`, d.place].filter(Boolean).join(" · ")));
+        li.appendChild(el("span", "sp-name", d.name || ""));
+        if (d.source) li.appendChild(el("span", "sp-source", d.source));
+        ul.appendChild(li);
+      }
+      sec.appendChild(ul);
+      pane.appendChild(sec);
+    }
   }
 
-  function addSlot(n) {
-    const child = person(Math.floor(n / 2));
-    const b = btn(`+ Add ${n % 2 === 0 ? "father" : "mother"}${Math.floor(n / 2) === 1 ? "" : " of " + first(child)}`, "slot", () => edit(n));
-    return b;
-  }
+  function btn(text, cls, fn) { const b = el("button", cls, text); b.type = "button"; b.addEventListener("click", fn); return b; }
 
-  function btn(text, cls, fn) {
-    const b = document.createElement("button");
-    b.type = "button"; b.className = cls; b.textContent = text;
-    b.addEventListener("click", fn);
-    return b;
-  }
-
-  /* ---------------- editor ---------------- */
+  /* ---------------- redigering ---------------- */
   const dlg = $("#editor"), ef = $("#edit-form");
   let editing = null;
   function edit(n) {
     editing = n;
     const p = person(n) || {};
-    $("#edit-title").textContent = person(n) ? `Edit ${fullName(p)}` : (n === 1 ? "You" : `Add ${relationLabel(n).toLowerCase()}`);
+    let title;
+    if (person(n)) title = `Endre ${fullName(p)}`;
+    else if (n === 1) title = "Legg til deg";
+    else if (Math.floor(n / 2) === 1) title = `Legg til din ${n % 2 === 0 ? "far" : "mor"}`;
+    else title = `Legg til ${n % 2 === 0 ? "far" : "mor"} til ${first(person(Math.floor(n / 2)))}`;
+    $("#edit-title").textContent = title;
     for (const k of ["given_name", "surname", "birth_year", "birthplace", "death_year"]) ef.elements[k].value = p[k] || "";
-    // a sensible default: a child's surname is often the father's patronymic or farm name, so leave it empty
     $("#edit-remove").hidden = !person(n) || n === 1;
     dlg.returnValue = "";
     dlg.showModal();
     ef.elements.given_name.focus();
   }
+  $("#edit-save").addEventListener("click", ev => { if (!ef.elements.given_name.value.trim()) { ev.preventDefault(); ef.elements.given_name.focus(); } });
   dlg.addEventListener("close", () => {
     if (dlg.returnValue === "save") {
-      const d = clean(Object.fromEntries(new FormData(ef).entries()));
-      if (d.given_name) { tree[String(editing)] = Object.assign(person(editing) || {}, d); save(); }
+      const d = cleanPerson(Object.fromEntries(new FormData(ef).entries()));
+      if (d.given_name) { tree[String(editing)] = Object.assign(person(editing) || {}, d); focus = editing; save(); }
     } else if (dlg.returnValue === "remove" && editing !== 1) {
-      // removing a person also removes everyone behind them in the tree
       for (const k of Object.keys(tree)) { let m = Number(k); while (m > editing) m = Math.floor(m / 2); if (m === editing) delete tree[k]; }
-      save();
+      focus = Math.floor(editing / 2); save();
     }
-    renderTree();
+    renderTree(); renderPane();
   });
-  $("#edit-save").addEventListener("click", ev => { if (!ef.elements.given_name.value.trim()) { ev.preventDefault(); ef.elements.given_name.focus(); } });
-
   $("#reset").addEventListener("click", () => {
-    if (confirm("Start over? This clears the tree saved in this browser.")) { tree = {}; save(); route(); }
+    if (confirm("Begynne på nytt? Treet som er lagret i denne nettleseren, blir slettet.")) { tree = {}; focus = 1; save(); route(); }
   });
 
-  /* ---------------- following a trail ---------------- */
-  const form = $("#search"), list = $("#list"), statusEl = $("#status");
-
+  /* ---------------- sporet ---------------- */
+  const form = $("#search");
   function openTrail(n) {
-    active = n; current = null;
-    const p = person(n), q = queryFor(n);
-    $("#trail-name").textContent = fullName(p);
-    $("#tray-name").textContent = first(p);
-    for (const [k, v] of Object.entries(q)) if (form.elements[k]) form.elements[k].value = v;
-    list.innerHTML = ""; say(""); $("#tray").hidden = true;
+    active = n; current = null; weakerOpen = false;
+    $("#trail-name").textContent = fullName(person(n));
+    for (const [k, v] of Object.entries(queryFor(n))) if (form.elements[k]) form.elements[k].value = v;
+    $("#results").innerHTML = ""; $("#summary").hidden = true;
     show("search-view");
     search();
   }
-  $("#back").addEventListener("click", () => { active = null; route(); });
-
-  const say = (html, kind = "info") => { statusEl.hidden = !html; statusEl.className = "status " + kind; statusEl.innerHTML = html || ""; };
-  const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  $("#back").addEventListener("click", () => { focus = active || focus; active = null; save(); route(); });
 
   async function search(ev) {
     ev && ev.preventDefault();
     const q = Object.fromEntries(new FormData(form).entries());
     for (const k of Object.keys(q)) q[k] = q[k].trim();
-    if (!q.given_name || !q.birth_year) { say("A first name and a rough birth year are all we need to begin.", "gentle"); return; }
     const go = $("#go");
-    go.disabled = true; go.textContent = "Following the trail…";
-    list.innerHTML = "";
+    go.disabled = true; go.textContent = "Leter…";
     try {
       const res = await fetch("/api/search", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(q) });
       const data = await res.json();
-      if (!res.ok) { say(esc(data.error || "Something went wrong."), "gentle"); return; }
-      current = data;
-      renderResults();
+      if (!res.ok) { message(data.error || "Noe gikk galt."); return; }
+      current = data; renderResults();
     } catch {
-      say("We couldn't reach the archive search just now. Try again in a moment.", "gentle");
-    } finally {
-      go.disabled = false; go.textContent = "Follow the trail";
-    }
+      message("Vi fikk ikke kontakt med arkivsøket akkurat nå. Prøv igjen om litt.");
+    } finally { go.disabled = false; go.textContent = "Let på nytt"; }
   }
   form.addEventListener("submit", search);
+  function message(t) { const s = $("#summary"); s.hidden = false; s.textContent = t; $("#results").innerHTML = ""; }
 
-  function decisions() { const p = person(active); p.kept = p.kept || {}; return p.kept; }
+  const decisions = () => { const p = person(active); p.kept = p.kept || {}; return p.kept; };
+
+  function badgeKind(x) {
+    const d = decisions()[x.record_id];
+    if (d && d.status === "confirmed") return "confirmed";
+    if (x.notes.some(n => /^\d+ listed family member/.test(n))) return "conflict";
+    return x.confidence === "high" ? "probable" : "unverified";
+  }
 
   function renderResults() {
-    const c = current, who = esc(first(person(active)) || c.query.given_name);
-    list.innerHTML = "";
-    if (!c.candidates.length) {
-      say(`<h2>The trail goes quiet here</h2>
-        <p>No census entry fits ${who} yet. That makes this an open mystery, not a dead end. A few things often help:</p>
-        <ul><li>Widen the birth year: ages in old censuses are often a year or two off.</li>
-        <li>Try another spelling, or the patronymic (Olsen, Olsdatter) instead of a farm name.</li>
-        <li>Leave out the birthplace: people moved more than we think.</li>
-        <li>So far we search ${esc(S.coverage.counties.join(", "))}. If ${who} lived elsewhere, that census isn't in yet.</li></ul>`, "mystery");
-    } else {
-      const strong = c.candidates.filter(x => x.confidence === "high").length;
-      const more = c.total > c.shown ? ` Showing the ${c.shown} closest.` : "";
-      const lead = strong ? `${strong} point${strong === 1 ? "s" : ""} strongly to ${who}.` : "None stands out yet, so the family details are your best guide.";
-      say(`<p><b>${c.total} trace${c.total === 1 ? "" : "s"} found.</b> ${lead}${more}</p>`, "info");
+    const c = current, p = person(active), who = first(p) || c.query.given_name, host = $("#results");
+    host.innerHTML = "";
+    const sum = $("#summary");
+    if (!c.candidates.length) { sum.hidden = true; host.appendChild(emptyState(c.query)); return; }
+    const strong = c.candidates.filter(x => x.confidence === "high").length;
+    sum.hidden = false;
+    sum.textContent = `${c.total} spor funnet. ` + (strong
+      ? `${strong} ${strong === 1 ? "peker" : "peker"} tydelig mot ${who}.`
+      : "Ingen skiller seg ut ennå, så familieopplysningene er den beste veiviseren.") +
+      (c.total > c.shown ? ` Viser de ${c.shown} nærmeste.` : "");
+
+    const dec = decisions();
+    const isAside = x => dec[x.record_id] && dec[x.record_id].status === "rejected";
+    let rest = c.candidates.slice();
+    const top = rest[0];
+    if (top && top.confidence === "high" && !isAside(top)) { host.appendChild(findCard(top, p)); rest = rest.slice(1); }
+    const main = rest.filter(x => x.confidence !== "low"), weak = rest.filter(x => x.confidence === "low");
+    if (main.length) { const ol = el("ol", "cards"); main.forEach(x => ol.appendChild(resultCard(x))); host.appendChild(ol); }
+    if (weak.length) {
+      const det = el("details", "weaker"); det.open = weakerOpen;
+      det.appendChild(el("summary", null, `Vis ${weak.length} svakere spor`));
+      det.addEventListener("toggle", () => { weakerOpen = det.open; });
+      const ol = el("ol", "cards"); weak.forEach(x => ol.appendChild(resultCard(x))); det.appendChild(ol);
+      host.appendChild(det);
     }
-    for (const cand of c.candidates) list.appendChild(card(cand));
-    updateTray();
   }
 
-  const NOTE_TEXT = [
-    [/^parents\/spouse in this record are inferred/, () => "Parents and spouse are read from who lived in the household, not from a stated link."],
-    [/^birth year in record is computed from stated age/, () => "The birth year comes from a stated age, so it may be a year off."],
-    [/^close rival: (\S+)/, m => `Another entry (${m[1]}) fits almost as well and looks like a different person.`],
-    [/^(\d+) listed family member\(s\) conflict/, () => "A family member listed here doesn't match your tree."],
-    [/^record lists none of the queried family members/, () => "This entry lists none of the family in your tree, so a namesake can't be ruled out."],
-    [/^birth year outside tolerance/, () => "The birth year is further off than you allowed."],
-    [/^fields were extracted from the transcription by a model/, () => "Details were read from the transcription by a model. Check the source."],
-  ];
-  const noteText = n => { for (const [re, f] of NOTE_TEXT) { const m = n.match(re); if (m) return f(m); } return n; };
-
-  function strongestClue(x) {
-    const has = re => x.notes.some(n => re.test(n));
-    if (has(/^\d+ listed family member/)) return "A family member listed here doesn't match your tree.";
-    const weak = x.explanation.filter(p => p.score < 0.6).map(p => (PART[p.name] || p.name).toLowerCase());
-    if (weak.length) return "Doesn't fit on " + weak.join(" and ") + ".";
-    if (has(/^close rival/)) return "Fits well, but a namesake nearby fits almost as well.";
-    if (has(/^record lists none of the queried family/)) return "Fits, but lists none of the family in your tree.";
-    if (x.explanation.find(p => p.name === "family" && p.score >= 0.9)) return "Name, birth year and family all fit.";
-    return "Name, birth year and place all fit.";
+  /* Nytt spor: det beste treffet, med postens egne ord */
+  function findCard(x, p) {
+    const kept = (decisions()[x.record_id] || {}).status === "confirmed";
+    const a = el("article", "sp-find");
+    const head = el("div", "sp-find-head");
+    head.appendChild(el("span", "sp-eyebrow", kept ? "Lagt til i treet" : "Nytt spor"));
+    const bw = el("span"); bw.style.marginLeft = "auto"; bw.appendChild(badge(badgeKind(x))); head.appendChild(bw);
+    const body = el("div", "sp-find-body");
+    body.appendChild(el("h3", "sp-find-title", `${first(p)} står i folketellingen ${x.year}`));
+    const place = [x.farm, x.municipality].filter(Boolean);
+    let story = place.length > 1 ? `${pronoun(x.sex)} bor på ${x.farm} i ${x.municipality}` : `${pronoun(x.sex)} er oppført i ${place[0] || "en ukjent plass"}`;
+    if (x.father && x.mother) story += `, sammen med foreldrene ${x.father} og ${x.mother}`;
+    else if (x.spouse) story += `, sammen med ${x.spouse}`;
+    story += ". Folketellingen skriver:";
+    body.appendChild(el("p", "sp-find-story", story));
+    body.appendChild(el("div", "sp-scan", "«" + [x.record_name, x.role, x.birth_year_in_record, x.birthplace].filter(v => v != null && v !== "").join(", ") + "»"));
+    body.appendChild(el("div", "sp-source", `${x.source} · ${x.record_id}`));
+    body.appendChild(clues(x));
+    const acts = el("div", "sp-actions");
+    acts.appendChild(btn(kept ? "Lagt til i treet" : "Legg til i treet", "sp-btn sp-btn-primary", () => decide(x, "confirmed")));
+    acts.appendChild(sourceButton(x));
+    acts.appendChild(btn("Ikke denne personen", "sp-btn sp-btn-quiet", () => decide(x, "rejected")));
+    body.appendChild(acts);
+    a.append(head, body);
+    return a;
   }
 
-  function card(x) {
-    const el = $("#card-t").content.firstElementChild.cloneNode(true);
-    el.dataset.id = x.record_id;
-    $(".year", el).textContent = x.year;
-    $(".where", el).textContent = [x.farm, x.municipality].filter(Boolean).join(", ") || "place not given";
-    $(".name", el).textContent = x.record_name || "(no name)";
-    $(".meta", el).textContent = `Born ${x.birth_year_in_record ?? "?"}${x.birthplace ? " in " + x.birthplace : ""}${x.role ? " · listed as «" + x.role + "»" : ""}`;
-    $(".clue", el).textContent = strongestClue(x);
-    const [label, cls] = CONF[x.confidence];
-    const chip = $(".chip", el);
-    chip.textContent = label; chip.classList.add(cls); chip.title = `Score ${Math.round(x.score * 100)} of 100`;
-    const ul = $(".reasons", el);
-    for (const p of x.explanation) {
-      const li = document.createElement("li");
-      li.className = p.score >= 0.9 ? "fits" : p.score >= 0.6 ? "partly" : "against";
-      li.innerHTML = '<span class="lab"></span><span class="txt"></span>';
-      $(".lab", li).textContent = PART[p.name] || p.name;
-      $(".txt", li).textContent = p.explanation;
+  function resultCard(x) {
+    const d = decisions()[x.record_id], kept = d && d.status === "confirmed", aside = d && d.status === "rejected";
+    const li = el("li", "sp-card rcard" + (aside ? " aside" : ""));
+    const top = el("div", "rcard-top");
+    const who = el("div");
+    who.appendChild(el("h3", "sp-name", x.record_name || "(uten navn)"));
+    who.appendChild(nums("p", "data", [`Folketellingen ${x.year}`, [x.farm, x.municipality].filter(Boolean).join(", "), `f. ${x.birth_year_in_record ?? "?"}${x.birthplace ? " i " + x.birthplace : ""}`].filter(Boolean).join(" · ")));
+    top.append(who, badge(badgeKind(x)));
+    li.appendChild(top);
+    li.appendChild(el("p", "clue", clueLine(x)));
+    li.appendChild(clues(x));
+    const acts = el("div", "sp-actions");
+    acts.appendChild(btn(kept ? "Lagt til i treet" : "Legg til i treet", "sp-btn", () => decide(x, "confirmed")));
+    acts.appendChild(sourceButton(x));
+    acts.appendChild(btn(aside ? "Lagt til side" : "Ikke denne personen", "sp-btn sp-btn-quiet", () => decide(x, "rejected")));
+    li.appendChild(acts);
+    return li;
+  }
+
+  function sourceButton(x) {
+    if (x.link) { const a = el("a", "sp-btn", "Se kilden"); a.href = x.link; a.target = "_blank"; a.rel = "noopener"; return a; }
+    const b = el("button", "sp-btn", x.demo ? "Ingen kildeside (eksempel)" : "Ingen lenke"); b.type = "button"; b.disabled = true; return b;
+  }
+
+  function clues(x) {
+    const det = el("details", "clues");
+    det.appendChild(el("summary", null, "Se sporene"));
+    const body = el("div", "clues-body");
+    const why = el("div"); why.appendChild(el("h4", null, "Hvorfor dette sporet"));
+    const ul = el("ul", "reasons");
+    for (const part of x.explanation) {
+      const li = el("li", part.score >= 0.9 ? "fits" : part.score >= 0.6 ? "partly" : "against");
+      li.append(el("span", "lab", PART[part.name] || part.name), el("span", "txt", nb(part.explanation)));
       ul.appendChild(li);
     }
-    for (const n of x.notes) { const li = document.createElement("li"); li.textContent = noteText(n); $(".notes", el).appendChild(li); }
+    why.appendChild(ul);
+    if (x.notes.length) { const nl = el("ul", "notes"); x.notes.forEach(n => nl.appendChild(el("li", null, noteNb(n)))); why.appendChild(nl); }
+    const house = el("div"); house.appendChild(el("h4", null, "Bodde samme sted"));
     const hh = x.household || [];
-    if (hh.length <= 1) $(".house", el).innerHTML = "<h4>Living at the same place</h4><p class='muted'>Nobody else is listed with this entry.</p>";
-    else for (const h of hh) {
-      const tr = document.createElement("tr");
-      if (h.record_id === x.record_id) tr.className = "me";
-      for (const v of [h.name, h.birth_year ?? "?", h.role || ""]) { const td = document.createElement("td"); td.textContent = v; tr.appendChild(td); }
-      $("tbody", el).appendChild(tr);
+    if (hh.length <= 1) house.appendChild(el("p", "muted", "Ingen andre er oppført sammen med denne posten."));
+    else {
+      const t = el("table"); t.innerHTML = "<thead><tr><th>Navn</th><th>Født</th><th>Oppført som</th></tr></thead>";
+      const tb = el("tbody");
+      for (const h of hh) { const tr = el("tr", h.record_id === x.record_id ? "me" : null); [h.name, h.birth_year ?? "?", h.role || ""].forEach(v => tr.appendChild(el("td", null, v))); tb.appendChild(tr); }
+      t.appendChild(tb); house.appendChild(t);
     }
-    $(".cite", el).textContent = x.source;
-    const open = $(".open", el);
-    if (x.link) open.href = x.link;
-    else { open.removeAttribute("href"); open.classList.add("disabled"); open.setAttribute("aria-disabled", "true"); open.textContent = x.demo ? "Example entry, no archive page" : "No archive link"; }
-    $(".yes", el).addEventListener("click", () => decide(x, "confirmed"));
-    $(".no", el).addEventListener("click", () => decide(x, "rejected"));
-    paint(el, decisions()[x.record_id]);
-    return el;
+    body.append(why, house);
+    det.appendChild(body);
+    return det;
+  }
+
+  function emptyState(q) {
+    const p = person(active), box = el("div", "sp-empty");
+    const a = el("div", "sp-art"); a.appendChild(art("art-route")); box.appendChild(a);
+    box.appendChild(el("h3", null, "Sporet stopper her, foreløpig"));
+    const where = q.birthplace ? ` i ${q.birthplace}` : "";
+    box.appendChild(el("p", "sp-muted",
+      `Vi fant ingen i folketellingene ${S.coverage.years.join(", ")} som passer ${fullName(p) || q.given_name}, født omkring ${q.birth_year}${where}. ` +
+      `${pronoun(q.sex)} kan være oppført med et annet gårdsnavn eller farsnavn, eller ha bodd utenfor ${S.coverage.counties.join(", ")}.`));
+    const acts = el("div", "sp-actions");
+    if (String(q.birth_year_tolerance) !== "5") acts.appendChild(btn("Let med ± 5 år", "sp-btn sp-btn-primary", () => { form.elements.birth_year_tolerance.value = "5"; search(); }));
+    else if (q.birthplace) acts.appendChild(btn("Let uten fødested", "sp-btn sp-btn-primary", () => { form.elements.birthplace.value = ""; search(); }));
+    acts.appendChild(btn("Endre søket", "sp-btn sp-btn-quiet", () => form.elements.given_name.focus()));
+    box.appendChild(acts);
+    return box;
   }
 
   function decide(x, status) {
     const d = decisions(), prev = d[x.record_id];
     if (prev && prev.status === status) delete d[x.record_id];
-    else d[x.record_id] = { status, confidence: x.confidence, year: x.year, reasons: x.explanation.map(p => `${PART[p.name] || p.name}: ${p.explanation}`) };
-    save();
-    paint(list.querySelector(`[data-id="${CSS.escape(x.record_id)}"]`), d[x.record_id]);
-    updateTray();
+    else d[x.record_id] = { status, confidence: x.confidence, year: x.year, name: x.record_name,
+      place: [x.farm, x.municipality].filter(Boolean).join(", "), source: `${x.source} · ${x.record_id}`,
+      reasons: x.explanation.map(p => `${PART[p.name] || p.name}: ${nb(p.explanation)}`) };
+    save(); renderResults();
   }
 
-  function paint(el, d) {
-    const kept = !!d && d.status === "confirmed", aside = !!d && d.status === "rejected";
-    el.classList.toggle("kept", kept); el.classList.toggle("aside", aside);
-    $(".yes", el).setAttribute("aria-pressed", String(kept)); $(".no", el).setAttribute("aria-pressed", String(aside));
-    $(".yes", el).textContent = kept ? "✓ Kept" : "This is them";
-    $(".no", el).textContent = aside ? "Set aside" : "Not them";
-  }
-
-  function updateTray() {
-    const vals = Object.values(decisions());
-    const yes = vals.filter(d => d.status === "confirmed").length, no = vals.filter(d => d.status === "rejected").length;
-    $("#tray").hidden = !current;
-    $("#tray-count").textContent = yes; $("#tray-rejected").textContent = no;
-    $("#make-report").disabled = yes === 0;
-  }
-
-  /* ---------------- chapters ---------------- */
   function chapter(n) {
-    const q = queryFor(n);
-    if (n === active) Object.assign(q, Object.fromEntries(new FormData(form).entries()));
-    $("#payload").value = JSON.stringify({ query: q, decisions: person(n).kept || {} });
+    $("#payload").value = JSON.stringify({ query: queryFor(n), decisions: person(n).kept || {} });
     $("#report-form").submit();
   }
-  $("#report-form").addEventListener("submit", ev => { ev.preventDefault(); chapter(active); });
 
-  /* ---------------- example family (invented) ---------------- */
+  /* ---------------- norsk tekst for motorens forklaringer ---------------- */
+  const PART = { "given name": "Fornavn", surname: "Etternavn", "birth year": "Fødselsår", place: "Sted", family: "Familie" };
+  const REL = { father: "far", mother: "mor", spouse: "ektefelle" };
+  const RULES = [
+    [/^same given name \((.*)\)$/, m => `samme fornavn (${m[1]})`],
+    [/^(.*) and (.*) are spellings of the same name$/, m => `${m[1]} og ${m[2]} er skrivemåter av samme navn`],
+    [/^no surname given$/, () => "etternavn ikke oppgitt"],
+    [/^no surname match$/, () => "etternavnet stemmer ikke"],
+    [/^same patronymic root \((.*)\), different form$/, m => `samme farsnavn (${m[1]}), annen form`],
+    [/^same patronymic \((.*)\)$/, m => `samme farsnavn (${m[1]})`],
+    [/^different patronymics \((.*)\)$/, m => `ulike farsnavn (${m[1]})`],
+    [/^surname (\S+) matches farm name (.*)$/, m => `etternavnet ${m[1]} stemmer med gårdsnavnet ${m[2]}`],
+    [/^surname (\S+) vs (.*)$/, m => `etternavn ${m[1]} mot ${m[2]}`],
+    [/^record surname (.*) is her husband's surname$/, m => `etternavnet ${m[1]} er ektemannens`],
+    [/^no surname in record; father (.*) implies the patronymic$/, m => `ikke etternavn i posten; faren ${m[1]} gir farsnavnet`],
+    [/^no surname in record$/, () => "ikke etternavn i posten"],
+    [/^record patronymic (\S+) fits father (.*)$/, m => `farsnavnet ${m[1]} passer med faren ${m[2]}`],
+    [/^record has no birth year$/, () => "fødselsår mangler i posten"],
+    [/^same birth year \((\d+)\)$/, m => `samme fødselsår (${m[1]})`],
+    [/^born (\d+), (\d+) years? ?\(?s?\)? from (\d+) \(within ±(\d+)\)$/, m => `født ${m[1]}, ${m[2]} år fra ${m[3]} (innenfor ± ${m[4]})`],
+    [/^born (\d+), (\d+) year\(s\) from (\d+) \(within ±(\d+)\)$/, m => `født ${m[1]}, ${m[2]} år fra ${m[3]} (innenfor ± ${m[4]})`],
+    [/^born (\d+), (\d+) years from (\d+) \(outside ±(\d+)\)$/, m => `født ${m[1]}, ${m[2]} år fra ${m[3]} (utenfor ± ${m[4]})`],
+    [/^record has no place$/, () => "sted mangler i posten"],
+    [/^same place \((.*)\)$/, m => `samme sted (${m[1]})`],
+    [/^(.*) vs (.*): likely the same place, spelled differently$/, m => `${m[1]} mot ${m[2]}: trolig samme sted, annen skrivemåte`],
+    [/^same county \((.*)\), different parish$/, m => `samme fylke (${m[1]}), annet sogn`],
+    [/^same county \((.*)\)$/, m => `samme fylke (${m[1]})`],
+    [/^(.*) vs (.*): does not match$/, m => `${m[1]} mot ${m[2]}: stemmer ikke`],
+    [/^(father|mother|spouse) not listed in record$/, m => `${REL[m[1]]} er ikke oppført`],
+    [/^(father|mother|spouse) (.*) vs (.*): match \(first name; surname can change at marriage\)$/, m => `${REL[m[1]]} ${m[2]} mot ${m[3]}: stemmer (fornavn; etternavnet kan endres ved giftemål)`],
+    [/^(father|mother|spouse) (.*) vs (.*): match$/, m => `${REL[m[1]]} ${m[2]} mot ${m[3]}: stemmer`],
+    [/^(father|mother|spouse) (.*) vs (.*): CONFLICT$/, m => `${REL[m[1]]} ${m[2]} mot ${m[3]}: motstrid`],
+    [/^(father|mother|spouse) (.*) vs (.*): similarity ([\d.]+)$/, m => `${REL[m[1]]} ${m[2]} mot ${m[3]}: likhet ${m[4].replace(".", ",")}`],
+    [/^(.*) vs (.*): similarity ([\d.]+)$/, m => `${m[1]} mot ${m[2]}: likhet ${m[3].replace(".", ",")}`],
+  ];
+  const one = s => { for (const [re, f] of RULES) { const m = s.match(re); if (m) return f(m); } return s; };
+  // family explanations join one clause per relative with "; " (a clause may itself contain "; ")
+  const nb = s => String(s).split(/; (?=(?:father|mother|spouse) )/).map(one).join("; ");
+
+  const NOTES = [
+    [/^parents\/spouse in this record are inferred/, () => "Foreldre og ektefelle er lest ut fra hvem som bodde i husstanden, ikke fra en oppgitt kobling."],
+    [/^birth year in record is computed from stated age/, () => "Fødselsåret er regnet ut fra oppgitt alder og kan bomme med et år."],
+    [/^close rival: (\S+)/, m => `En annen post (${m[1]}) passer nesten like godt og ser ut til å være en annen person.`],
+    [/^\d+ listed family member\(s\) conflict/, () => "Et familiemedlem i posten stemmer ikke med treet ditt."],
+    [/^record lists none of the queried family members/, () => "Posten nevner ingen fra familien i treet ditt, så en navnebror kan ikke utelukkes."],
+    [/^birth year outside tolerance/, () => "Fødselsåret ligger lenger unna enn slingringsmonnet."],
+    [/^sex in record/, () => "Kjønnet i posten stemmer ikke."],
+    [/^fields were extracted from the transcription by a model/, () => "Opplysningene er lest ut av transkripsjonen med en modell. Sjekk kilden."],
+  ];
+  const noteNb = n => { for (const [re, f] of NOTES) { const m = n.match(re); if (m) return f(m); } return n; };
+
+  function clueLine(x) {
+    const has = re => x.notes.some(n => re.test(n));
+    if (has(/^\d+ listed family member/)) return "Et familiemedlem her stemmer ikke med treet ditt.";
+    const weak = x.explanation.filter(p => p.score < 0.6).map(p => (PART[p.name] || p.name).toLowerCase());
+    if (weak.length) return "Passer ikke på " + weak.join(" og ") + ".";
+    if (has(/^close rival/)) return "Passer godt, men en navnebror i nærheten passer nesten like godt.";
+    if (has(/^record lists none of the queried family/)) return "Passer, men nevner ingen fra familien i treet ditt.";
+    if (x.explanation.find(p => p.name === "family" && p.score >= 0.9)) return "Navn, fødselsår og familie stemmer.";
+    return "Navn, fødselsår og sted stemmer.";
+  }
+
+  /* ---------------- eksempelfamilien (oppdiktet) ---------------- */
   const EXAMPLE = {
     "1": { given_name: "Ingrid", surname: "Lie", birth_year: "1991", birthplace: "Fredrikstad" },
     "2": { given_name: "Erik", surname: "Lie", birth_year: "1959", birthplace: "Rakkestad" },
@@ -336,7 +484,7 @@
     "65": { given_name: "Berte", surname: "Hansdatter", birth_year: "1826", birthplace: "Degernes" },
   };
   const ex = $("#example");
-  if (ex) ex.addEventListener("click", () => { tree = JSON.parse(JSON.stringify(EXAMPLE)); save(); route(); });
+  if (ex) ex.addEventListener("click", () => { tree = JSON.parse(JSON.stringify(EXAMPLE)); focus = 32; save(); route(); });
 
   route();
 })();

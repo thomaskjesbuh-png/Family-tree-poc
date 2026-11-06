@@ -15,8 +15,8 @@ def client():
 
 def test_index_shows_prototype_notice(client):
     html = client.get("/").get_data(as_text=True)
-    assert "Prototype." in html and "none of these people lived" in html
-    assert "Every story starts with you" in html and "Following the trail of" in html
+    assert "Prototype." in html and "ingen av disse personene har levd" in html
+    assert "Hver historie begynner med deg" in html and "Sporet etter" in html and 'lang="nb"' in html
 
 
 def test_search_finds_the_demo_ancestor_in_three_censuses(client):
@@ -33,6 +33,7 @@ def test_search_finds_the_demo_ancestor_in_three_censuses(client):
 def test_privacy_guard(client):
     res = client.post("/api/search", json={"given_name": "Kari", "birth_year": "1960"})
     assert res.status_code == 422 and res.get_json()["kind"] == "privacy"
+    assert "privatlivet" in res.get_json()["error"]
 
 
 def test_input_errors(client):
@@ -46,8 +47,8 @@ def test_report_lists_only_confirmed(client):
     payload = {"query": data["query"], "decisions": {a: {"status": "confirmed", "reasons": ["First name: same"]},
                                                      b: {"status": "rejected"}}}
     html = client.post("/report", data={"payload": json.dumps(payload)}).get_data(as_text=True)
-    assert a in html and b not in html and "1 possible record was set aside" in html
-    assert "An example chapter" in html and "A chapter for The Book of Me" in html
+    assert a in html and b not in html and "1 mulig post ble lagt til side" in html
+    assert "Et eksempelkapittel" in html and "Et kapittel i The Book of Me" in html
 
 
 def test_app_name_is_configurable(monkeypatch):

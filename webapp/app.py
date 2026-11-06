@@ -50,15 +50,15 @@ def _parse_query(data: dict) -> PersonQuery:
             v = [x.strip() for x in v.split(",") if x.strip()]
         clean[k] = v
     if not clean.get("given_name"):
-        raise ValueError("Enter at least a first name.")
+        raise ValueError("Skriv inn minst et fornavn.")
     if not clean.get("birth_year"):
-        raise ValueError("Enter an approximate birth year.")
+        raise ValueError("Skriv inn et omtrentlig fødselsår.")
     try:
         clean["birth_year"] = int(clean["birth_year"])
         if "birth_year_tolerance" in clean:
             clean["birth_year_tolerance"] = max(0, min(10, int(clean["birth_year_tolerance"])))
     except (TypeError, ValueError):
-        raise ValueError("Birth year must be a number, for example 1851.")
+        raise ValueError("Fødselsåret må være et tall, for eksempel 1851.")
     return PersonQuery.from_dict(clean)
 
 
@@ -75,7 +75,7 @@ def create_app(records_path: Path | str | None = None) -> Flask:
         COMMERCIAL_CLEARED=os.environ.get("AF_COMMERCIAL_CLEARED") == "1",
         # The design manual leaves the name open (candidates: Sporene, Slektspor,
         # Ætt, Kilde, Gården; trademark check pending), so it is configurable.
-        APP_NAME=os.environ.get("AF_APP_NAME", "Ancestor Finder"),
+        APP_NAME=os.environ.get("AF_APP_NAME", "Spor"),
         COVERAGE={"years": years, "counties": counties, "records": len(source.records)},
     )
     helper = None
@@ -105,8 +105,9 @@ def create_app(records_path: Path | str | None = None) -> Flask:
         try:
             q = _parse_query(data)
             res = find(q, source, helper=helper)
-        except PrivacyError as e:
-            return jsonify({"error": str(e), "kind": "privacy"}), 422
+        except PrivacyError:
+            return jsonify({"error": f"Vi søker bare etter personer født i {cutoff_year()} eller tidligere, "
+                                     "slik at de levende får beholde privatlivet sitt.", "kind": "privacy"}), 422
         except ValueError as e:
             return jsonify({"error": str(e), "kind": "input"}), 400
         out = []

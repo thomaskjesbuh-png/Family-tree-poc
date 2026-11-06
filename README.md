@@ -185,16 +185,22 @@ archive's booklet. The customer marks each record "This is them" or "Not them"
 citations for the confirmed records. Searches for people born in the last
 100 years are refused.
 
-The look and wording follow the draft design manual ("Family Tree App –
-Design Manual"): Birch, Slate, Moss and Amber/copper colours (exact values
-proposed in `webapp/static/style.css`), Fraunces for names and headings with
-Inter for data (from Google Fonts, with system fallbacks), quiet cards that
-show the evidence on request, and a report laid out as a printable chapter
-for "The Book of Me". The voice is warm and lightly detective-like ("follow
-the trail", "an open mystery, not a dead end"), while confidence and sources
-stay plainly worded. The line drawing is a placeholder for the planned
-robot-drawn art (`webapp/templates/_drawing_farm.html`). The name is still
-open in the manual, so set it with `AF_APP_NAME` (default "Ancestor Finder").
+The interface follows the **Spor design system**
+(https://claude.ai/artifact/HYYfBZ8zAjUJN3CqMxQtjA): Norwegian (bokmål) first,
+the "spor" logo lockup, its colour, spacing, radius and shadow tokens
+(`webapp/static/spor-tokens.css`, generated from its `tokens.json`), its
+component classes (`webapp/static/spor-components.css`, copied from its
+`bundle.css`), Literata / Schibsted Grotesk / IBM Plex Mono, and its pen
+drawings copied unchanged (`webapp/templates/_art_*.html`, `_logo_mark.html`).
+The research view is two panes (the FamilyTree, oldest generation at the top,
+and the PersonCard); the best result is a FindCard ("Nytt spor") quoting the
+record's own words; dead ends use the EmptyState ("Sporet stopper her,
+foreløpig"); the chapter follows the StoryPage. Confidence uses the fixed
+words: Sannsynlig for a strong match, Ubekreftet for weaker ones, Bekreftet
+once the user adds a record to the tree, Motstridende kilder when a family
+member conflicts with the tree. The engine's explanations are translated to
+Norwegian in the browser. The name is still a working name: change it with
+`AF_APP_NAME` (default "Spor").
 
 The default data is an invented family (`data/demo/demo_records.csv`, made by
 `tools/make_demo_data.py`), so the demo can be shown to anyone.

@@ -1,175 +1,139 @@
+{% set n_records = "{:,}".format(status.coverage.records).replace(",", " ") %}
 <!doctype html>
-<html lang="en">
+<html lang="nb">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{ status.app_name }}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400&family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,400;7..72,500&family=Schibsted+Grotesk:wght@400;600&family=IBM+Plex+Mono&display=swap">
+<link rel="stylesheet" href="{{ url_for('static', filename='spor-tokens.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='spor-components.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
 <header class="masthead">
   <div class="masthead-inner">
-    <a class="wordmark" href="/">{{ status.app_name }}</a>
-    <p class="coverage">{{ "{:,}".format(status.coverage.records) }} census entries ·
-      {{ status.coverage.years | join(", ") }} · {{ status.coverage.counties | join(", ") }}</p>
+    <a class="lockup" href="/" aria-label="{{ status.app_name }}, til forsiden">{% include "_logo_mark.html" %}<span class="wordmark">{{ status.app_name | lower }}</span></a>
+    <p class="coverage data"><span class="num">{{ n_records }}</span> oppføringer · folketellingene {% for y in status.coverage.years %}<span class="num">{{ y }}</span>{{ ", " if not loop.last }}{% endfor %} · {{ status.coverage.counties | join(", ") }}</p>
   </div>
 </header>
 
 {% if not status.commercial_cleared %}
 <p class="notice" role="note">
   <b>Prototype.</b>
-  {% if status.demo %}The family in the census here is invented; none of these people lived.{% endif %}
-  The census transcriptions come from Nasjonalarkivet, and their use in a paid service isn't cleared yet.
+  {% if status.demo %}Familien i folketellingene her er oppdiktet; ingen av disse personene har levd.{% endif %}
+  Transkripsjonene kommer fra Nasjonalarkivet, og bruk i en betalt tjeneste er ikke avklart ennå.
 </p>
 {% endif %}
 
-<!-- ============ 1. Start with you ============ -->
+<!-- ============ 1. Start med deg ============ -->
 <main id="start-view" class="start" hidden>
-  <div class="start-inner">
-    {% include "_drawing_farm.html" %}
-    <h1>Every story starts with you</h1>
-    <p class="lede">Begin with yourself, then add your parents and grandparents. Once the tree reaches someone born
-      in {{ status.cutoff_year }} or earlier, we can follow their trail in the censuses.</p>
-    <form id="start-form" class="start-form" novalidate>
-      <div class="row">
-        <label>Your first names<input name="given_name" required autocomplete="given-name"></label>
-        <label>Surname<input name="surname" autocomplete="family-name"></label>
-      </div>
-      <div class="row">
-        <label>Born<input name="birth_year" inputmode="numeric" placeholder="1989"></label>
-        <label>Where you were born<input name="birthplace" placeholder="Fredrikstad"></label>
-      </div>
-      <div class="actions">
-        <button type="submit" class="primary">Start my tree</button>
-        {% if status.demo %}<button type="button" class="quiet" id="example">Try the example family</button>{% endif %}
-      </div>
-      <p class="fine">Your tree is kept in this browser only. People born after {{ status.cutoff_year }} are never searched.</p>
-    </form>
-  </div>
+  <div class="sp-art">{% include "_art_farm.html" %}</div>
+  <h1>Hver historie begynner med deg</h1>
+  <p class="lede">Start med deg selv, og legg til foreldre og besteforeldre. Når treet når noen som er født i {{ status.cutoff_year }} eller tidligere, kan vi følge sporet deres i folketellingene.</p>
+  <form id="start-form" novalidate>
+    <div class="row">
+      <label>Fornavn<input name="given_name" required autocomplete="given-name"></label>
+      <label>Etternavn<input name="surname" autocomplete="family-name"></label>
+    </div>
+    <div class="row">
+      <label>Fødselsår<input name="birth_year" inputmode="numeric"></label>
+      <label>Fødested<input name="birthplace"></label>
+    </div>
+    <div class="sp-actions">
+      <button type="submit" class="sp-btn sp-btn-primary">Start treet mitt</button>
+      {% if status.demo %}<button type="button" class="sp-btn sp-btn-quiet" id="example">Se eksempelfamilien</button>{% endif %}
+    </div>
+    <p class="fine">Treet lagres bare i denne nettleseren. Personer født etter {{ status.cutoff_year }} blir aldri søkt opp.</p>
+  </form>
 </main>
 
-<!-- ============ 2. The tree ============ -->
-<main id="tree-view" class="tree-wrap" hidden>
-  <div class="tree-head">
+<!-- ============ 2. Slekta: treet til venstre, personen til høyre ============ -->
+<main id="tree-view" class="research" hidden>
+  <div class="research-head">
     <div>
-      <h1>Your family, generation by generation</h1>
-      <p class="lede">Add the people you know. When someone is old enough for the censuses, follow their trail.</p>
+      <h1 class="title">Slekta di</h1>
+      <p class="lede">Velg en person i treet. Når noen er gamle nok for folketellingene, kan du følge sporet deres.</p>
     </div>
-    <div class="tree-tools">
-      <button type="button" class="quiet small" id="reset">Start over</button>
-    </div>
+    <button type="button" class="sp-btn sp-btn-quiet" id="reset">Begynn på nytt</button>
   </div>
-  <div class="tree-scroll"><div class="tree" id="tree"></div></div>
-  <p class="fine tree-foot">Censuses searched: {{ status.coverage.years | join(", ") }} in {{ status.coverage.counties | join(", ") }}.
-    Living memory stays in this browser.</p>
+  <section class="sp-tree canvas" aria-label="Slektstreet, eldste generasjon øverst">
+    <div class="tree-inner" id="tree"></div>
+  </section>
+  <aside class="pane" id="pane" aria-live="polite"></aside>
 </main>
 
-<!-- ============ 3. Following one person's trail ============ -->
-<main id="search-view" class="layout" hidden>
-  <section class="search-col" aria-labelledby="search-h">
-    <button type="button" class="quiet back" id="back">← Back to the tree</button>
-    <h1 id="search-h">Following the trail of <span id="trail-name"></span></h1>
-    <p class="lede" id="trail-lede">We've filled in what your tree knows. Adjust anything, then follow the trail.</p>
+<!-- ============ 3. Sporet etter én person ============ -->
+<main id="search-view" class="trail" hidden>
+  <section class="trail-form" aria-labelledby="search-h">
+    <button type="button" class="sp-btn sp-btn-quiet back" id="back">← Tilbake til treet</button>
+    <h1 id="search-h" class="title">Sporet etter <span id="trail-name"></span></h1>
+    <p class="lede">Vi har fylt inn det treet ditt vet. Endre gjerne, og let på nytt.</p>
     <form id="search" novalidate>
       <fieldset>
-        <legend>The person</legend>
+        <legend class="sp-eyebrow">Personen</legend>
         <div class="row">
-          <label>First names<input name="given_name" required autocomplete="off"></label>
-          <label>Surname<input name="surname" autocomplete="off"></label>
+          <label>Fornavn<input name="given_name" required autocomplete="off"></label>
+          <label>Etternavn<input name="surname" autocomplete="off"></label>
         </div>
-        <label>Other spellings <span class="opt">optional, separate with commas</span>
+        <label>Andre skrivemåter <span class="opt">skill med komma</span>
           <input name="name_variants" autocomplete="off" placeholder="Ole Larsen, Ola Larssen"></label>
-        <div class="row three">
-          <label>Born about<input name="birth_year" inputmode="numeric" required></label>
-          <label>Give or take<select name="birth_year_tolerance">
-            <option value="0">exact</option><option value="1">1 year</option><option value="2" selected>2 years</option>
-            <option value="3">3 years</option><option value="5">5 years</option>
+        <div class="row">
+          <label>Født omkring<input name="birth_year" inputmode="numeric" required></label>
+          <label>Slingringsmonn<select name="birth_year_tolerance">
+            <option value="0">nøyaktig</option><option value="1">± 1 år</option><option value="2" selected>± 2 år</option>
+            <option value="3">± 3 år</option><option value="5">± 5 år</option>
           </select></label>
-          <label>Sex<select name="sex"><option value="">Not sure</option><option value="m">Male</option><option value="f">Female</option></select></label>
         </div>
         <div class="row">
-          <label>Birthplace <span class="opt">parish</span><input name="birthplace" autocomplete="off"></label>
-          <label>County<input name="county" autocomplete="off" list="counties"></label>
+          <label>Kjønn<select name="sex"><option value="">Vet ikke</option><option value="m">Mann</option><option value="f">Kvinne</option></select></label>
+          <label>Fylke<input name="county" autocomplete="off" list="counties"></label>
         </div>
+        <label>Fødested <span class="opt">sogn</span><input name="birthplace" autocomplete="off"></label>
         <datalist id="counties">{% for c in status.coverage.counties %}<option value="{{ c }}">{% endfor %}</datalist>
       </fieldset>
       <fieldset>
-        <legend>Family <span class="opt">from your tree, the strongest clues</span></legend>
-        <label>Father<input name="father_name" autocomplete="off"></label>
-        <label>Mother <span class="opt">her maiden name is fine</span><input name="mother_name" autocomplete="off"></label>
-        <label>Spouse<input name="spouse_name" autocomplete="off"></label>
+        <legend class="sp-eyebrow">Familie</legend>
+        <label>Far<input name="father_name" autocomplete="off"></label>
+        <label>Mor <span class="opt">pikenavn går fint</span><input name="mother_name" autocomplete="off"></label>
+        <label>Ektefelle<input name="spouse_name" autocomplete="off"></label>
       </fieldset>
-      <div class="actions">
-        <button type="submit" class="primary" id="go">Follow the trail</button>
-      </div>
+      <button type="submit" class="sp-btn" id="go">Let på nytt</button>
     </form>
   </section>
-
-  <section class="results-col" aria-live="polite">
-    <div class="tray" id="tray" hidden>
-      <p><span class="num" id="tray-count">0</span> kept for <span id="tray-name"></span> · <span class="num" id="tray-rejected">0</span> set aside</p>
-      <form id="report-form" method="post" action="{{ url_for('report') }}" target="_blank">
-        <input type="hidden" name="payload" id="payload">
-        <button type="submit" class="primary small" id="make-report">Write the chapter</button>
-      </form>
-    </div>
-    <div id="status" class="status" hidden></div>
-    <ol id="list" class="cards"></ol>
+  <section aria-live="polite">
+    <p class="summary" id="summary" hidden></p>
+    <div class="results" id="results"></div>
   </section>
 </main>
 
 <!-- person editor -->
 <dialog id="editor" class="editor">
   <form method="dialog" id="edit-form" novalidate>
-    <h2 id="edit-title">Add a person</h2>
+    <h2 id="edit-title">Legg til i treet</h2>
     <div class="row">
-      <label>First names<input name="given_name" required></label>
-      <label>Surname <span class="opt">at birth</span><input name="surname"></label>
+      <label>Fornavn<input name="given_name" required></label>
+      <label>Etternavn <span class="opt">ved fødsel</span><input name="surname"></label>
     </div>
     <div class="row">
-      <label>Born <span class="opt">year, a guess is fine</span><input name="birth_year" inputmode="numeric"></label>
-      <label>Where<input name="birthplace" placeholder="parish or town"></label>
+      <label>Fødselsår <span class="opt">et anslag går fint</span><input name="birth_year" inputmode="numeric"></label>
+      <label>Fødested<input name="birthplace" placeholder="sogn eller by"></label>
     </div>
-    <label>Died <span class="opt">optional</span><input name="death_year" inputmode="numeric"></label>
-    <div class="actions">
-      <button value="save" class="primary" id="edit-save">Save</button>
-      <button value="cancel" class="quiet" formnovalidate>Cancel</button>
-      <button value="remove" class="quiet danger" id="edit-remove" formnovalidate>Remove</button>
+    <label>Dødsår <span class="opt">valgfritt</span><input name="death_year" inputmode="numeric"></label>
+    <div class="sp-actions">
+      <button value="save" class="sp-btn sp-btn-primary" id="edit-save">Lagre</button>
+      <button value="cancel" class="sp-btn sp-btn-quiet" formnovalidate>Avbryt</button>
+      <button value="remove" class="sp-btn sp-btn-quiet danger" id="edit-remove" formnovalidate>Fjern fra treet</button>
     </div>
   </form>
 </dialog>
 
-<template id="card-t">
-  <li class="card">
-    <div class="card-main">
-      <div class="who">
-        <p class="kicker"><span class="year num"></span><span class="where"></span></p>
-        <h3 class="name"></h3>
-        <p class="meta"></p>
-        <p class="clue"></p>
-      </div>
-      <span class="chip"></span>
-    </div>
-    <details class="evidence">
-      <summary>Examine the clues</summary>
-      <div class="evidence-body">
-        <div class="why"><h4>Why this trace</h4><ul class="reasons"></ul><ul class="notes"></ul></div>
-        <div class="house"><h4>Living at the same place</h4><table><thead><tr><th>Name</th><th>Born</th><th>Listed as</th></tr></thead><tbody></tbody></table></div>
-      </div>
-    </details>
-    <div class="card-foot">
-      <span class="cite"></span>
-      <div class="btns">
-        <a class="quiet small open" target="_blank" rel="noopener">See the archive page</a>
-        <button type="button" class="small no">Not them</button>
-        <button type="button" class="small yes">This is them</button>
-      </div>
-    </div>
-  </li>
-</template>
+<form id="report-form" method="post" action="{{ url_for('report') }}" target="_blank" hidden><input type="hidden" name="payload" id="payload"></form>
+
+<template id="art-portrait">{% include "_art_portrait.html" %}</template>
+<template id="art-route">{% include "_art_route.html" %}</template>
 
 <script>window.AF_STATUS = {{ status | tojson }};</script>
 <script src="{{ url_for('static', filename='app.js') }}"></script>

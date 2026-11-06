@@ -1,0 +1,65 @@
+/* Spor design system components (sp- classes), copied from its components/bundle.css. */
+body { margin: 0; font-family: var(--font-sans); font-size: 15px; line-height: 22px; background: var(--surface); color: var(--ink); -webkit-font-smoothing: antialiased; }
+.sp-row { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; padding: var(--space-6); }
+.sp-stage { padding: var(--space-6); display: flex; flex-wrap: wrap; gap: var(--space-6); align-items: flex-start; }
+.sp-serif { font-family: var(--font-serif); }
+.sp-num { font-variant-numeric: tabular-nums; }
+.sp-muted { color: var(--ink-muted); }
+.sp-source { font-family: var(--font-mono); font-size: 12.5px; line-height: 18px; color: var(--ink-muted); }
+.sp-eyebrow { font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+.sp-name { font-family: var(--font-serif); font-size: 22px; line-height: 28px; font-weight: 500; margin: 0; text-wrap: balance; }
+
+/* Button */
+.sp-btn { font: 600 13px/18px var(--font-sans); height: 36px; padding: 0 var(--space-4); border-radius: var(--radius-md); border: 1px solid var(--line-strong); background: var(--surface-raised); color: var(--ink); cursor: pointer; display: inline-flex; align-items: center; gap: var(--space-2); }
+.sp-btn:hover { background: var(--surface-sunken); }
+.sp-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.sp-btn-primary { background: var(--fjord); border-color: var(--fjord); color: var(--on-fjord); }
+.sp-btn-primary:hover { background: var(--fjord); filter: brightness(1.08); }
+.sp-btn-quiet { background: transparent; border-color: transparent; color: var(--link); padding: 0 var(--space-2); }
+.sp-btn-quiet:hover { background: var(--fjord-soft); }
+.sp-btn svg { width: 16px; height: 16px; }
+
+/* Confidence badge */
+.sp-badge { display: inline-flex; align-items: center; gap: var(--space-1); font: 600 12px/20px var(--font-sans); padding: 0 var(--space-2) 0 6px; border-radius: var(--radius-sm); }
+.sp-badge svg { width: 14px; height: 14px; }
+.sp-badge-confirmed { background: var(--moss-soft); color: var(--moss); }
+.sp-badge-probable { background: var(--amber-soft); color: var(--amber); }
+.sp-badge-unverified { background: transparent; color: var(--ink-muted); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.sp-badge-conflict { background: var(--clay-soft); color: var(--clay); }
+
+/* Cards */
+.sp-card { background: var(--surface-raised); border: 1px solid var(--line); border-radius: var(--radius-md); padding: var(--space-6); }
+.sp-portrait { width: 72px; aspect-ratio: 4 / 5; border-radius: 50%; background: var(--surface-sunken); color: var(--ink); display: grid; place-items: center; overflow: hidden; flex: none; }
+.sp-portrait svg { width: 100%; height: 100%; }
+.sp-person { display: flex; gap: var(--space-4); max-width: 420px; }
+.sp-person-body { display: grid; gap: var(--space-1); min-width: 0; }
+.sp-facts { margin: var(--space-2) 0 0; display: grid; grid-template-columns: auto 1fr; gap: 2px var(--space-3); font-size: 14px; line-height: 20px; font-variant-numeric: tabular-nums; }
+.sp-facts dt { color: var(--ink-muted); }
+.sp-facts dd { margin: 0; }
+.sp-find { background: var(--surface-raised); border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow-paper); max-width: 520px; overflow: hidden; }
+.sp-find-head { background: var(--amber-soft); color: var(--amber); padding: var(--space-2) var(--space-6); display: flex; align-items: center; gap: var(--space-2); }
+.sp-find-body { padding: var(--space-6); display: grid; gap: var(--space-3); }
+.sp-find-title { font-family: var(--font-serif); font-size: 22px; line-height: 28px; font-weight: 500; margin: 0; text-wrap: balance; }
+.sp-find-story { font-family: var(--font-serif); font-size: 17px; line-height: 27px; margin: 0; }
+.sp-scan { background: var(--surface-sunken); border-radius: var(--radius-sm); padding: var(--space-3) var(--space-4); font-family: var(--font-serif); font-style: italic; font-size: 15px; }
+.sp-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-1); }
+
+/* Tree */
+.sp-tree { background: var(--surface-sunken); border-radius: var(--radius-lg); padding: var(--space-6); color: var(--moss); }
+.sp-node { fill: var(--surface-raised); stroke: var(--line); }
+.sp-node-active { fill: var(--fjord-soft); stroke: var(--fjord); stroke-width: 1.5; }
+
+/* Empty state */
+.sp-empty { max-width: 460px; text-align: left; display: grid; gap: var(--space-3); color: var(--ink); }
+.sp-empty h3 { font-family: var(--font-serif); font-size: 22px; line-height: 28px; font-weight: 500; margin: 0; }
+.sp-empty p { margin: 0; }
+
+/* Book page */
+.sp-page { background: var(--surface); box-shadow: var(--shadow-paper); border: 1px solid var(--line); width: 360px; aspect-ratio: 148 / 210; padding: 40px 36px 28px; box-sizing: border-box; display: flex; flex-direction: column; gap: var(--space-3); color: var(--ink); }
+.sp-page .chap { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-muted); }
+.sp-page h2 { font-family: var(--font-serif); font-weight: 400; font-size: 32px; line-height: 36px; margin: 0; }
+.sp-page p { font-family: var(--font-serif); font-size: 13px; line-height: 21px; margin: 0; }
+.sp-page p:first-of-type::first-letter { font-size: 42px; line-height: 36px; float: left; padding: 3px 6px 0 0; font-weight: 500; }
+.sp-page .folio { margin-top: auto; text-align: center; font-size: 11px; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+.sp-art { color: var(--ink); }
+.sp-art svg { display: block; width: 100%; height: auto; }
