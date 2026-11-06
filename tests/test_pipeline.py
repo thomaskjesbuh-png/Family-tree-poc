@@ -56,3 +56,10 @@ def test_cost_calculation():
     assert cost_usd("claude-haiku-5-5", usage) == pytest.approx(0.10)
     usage = {"input_tokens": 0, "output_tokens": 1_000_000, "cache_read_input_tokens": 1_000_000}
     assert cost_usd("claude-sonnet-5-5", usage) == pytest.approx(10.0 + 0.2)
+
+
+def test_no_census_before_birth():
+    # born 1898: the 1865 records can't be this person
+    q = PersonQuery(given_name="Ole", surname="Hansen", birth_year=1898, birthplace="Rakkestad")
+    res = find(q, LocalFileSource())
+    assert all(c.record.year >= 1896 for c in res.candidates)

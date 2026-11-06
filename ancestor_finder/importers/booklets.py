@@ -266,7 +266,9 @@ def parse_booklet(pdf: Path, year: int, county_dir: str = "01Ostfold") -> list[R
             # continuation of the previous person (wrapped name or birthplace)
             if last is not None:
                 offset = len(line) - len(line.lstrip())
-                if 3 <= offset < cols.sex - 1:
+                if ":" in line:
+                    pass  # a labelled note ("Heimvendt norsk-amerikanar: ..."), not a name
+                elif 3 <= offset < cols.sex - 1:
                     last.name = (last.name + " " + line[offset:cols.sex].strip().replace("*", "")).strip()
                 elif offset >= cols.fodested - 2 and last.birthplace:
                     last.birthplace = (last.birthplace + " " + line.strip()).strip()

@@ -72,3 +72,36 @@ def test_rank_drops_weak_and_sorts():
     weak = score_record(Q, rec(record_id="B", given_name="Berte", surname="Hansen", birth_year=1830))
     ranked = rank([weak, strong])
     assert [c.record.record_id for c in ranked] == ["A"]
+
+
+def test_married_name_is_not_a_conflict():
+    # the family knows her maiden name; the census uses her married name
+    q = PersonQuery(given_name="Lars", surname="Larsen", birth_year=1877, sex="m",
+                    spouse_name="Marte Sofie Pedersen")
+    c = score_record(q, rec(given_name="Lars", surname="Larsen", birth_year=1877, sex="m",
+                             spouse_name="Marte Larsen"))
+    assert not any("conflict" in n for n in c.notes)
+    child = PersonQuery(given_name="Johan", surname="Larsen", birth_year=1902, sex="m",
+                        father_name="Lars Peder Larsen", mother_name="Marte Sofie Pedersen")
+    c = score_record(child, rec(given_name="Johan", surname="Larsen", birth_year=1902, sex="m",
+                                 father_name="Lars Larsen", mother_name="Marte Larsen"))
+    assert c.confidence == "high" and not any("conflict" in n for n in c.notes)
+
+
+def test_woman_found_under_husbands_surname():
+    q = PersonQuery(given_name="Marte", surname="Pedersen", birth_year=1879, sex="f",
+                    spouse_name="Lars Larsen")
+    c = score_record(q, rec(given_name="Marte", surname="Larsen", birth_year=1879, sex="f"))
+    assert next(p for p in c.parts if p.name == "surname").score >= 0.9
+
+
+def test_father_with_other_surname_is_still_a_conflict():
+    q = PersonQuery(given_name="Ole", surname="Hansen", birth_year=1851, father_name="Hans Olsen")
+    c = score_record(q, rec(given_name="Ole", surname="Hansen", birth_year=1851, father_name="Hans Pedersen"))
+    assert any("conflict" in n for n in c.notes)
+
+
+def test_birth_year_outside_tolerance_is_low():
+    q = PersonQuery(given_name="Ingrid", surname="Olsen", birth_year=1917)
+    c = score_record(q, rec(given_name="Ingrid", surname="Olsen", birth_year=1909))
+    assert c.confidence == "low"

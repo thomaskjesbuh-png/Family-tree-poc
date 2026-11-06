@@ -1,6 +1,6 @@
 # Accuracy report
 
-Generated 2026-11-05 · source: local file data/sample_records.csv (FICTIONAL sample) · model steps: off (deterministic scoring only)
+Generated 2026-11-06 · source: local file data/sample_records.csv (FICTIONAL sample) · model steps: off (deterministic scoring only)
 
 > These results come from **fictional sample records** built to exercise the pipeline. They show that it runs end to end and handles the tricky cases. They say nothing yet about accuracy on real archives. Rerun on the 20 real ancestors once access is confirmed.
 
@@ -13,7 +13,9 @@ Generated 2026-11-05 · source: local file data/sample_records.csv (FICTIONAL sa
 | Correct record in top 3 | 4 of 4 |
 | Missed | 0 of 4 |
 | "No match" cases correctly left empty | 1 of 1 |
-| False matches at medium or high confidence | 1 |
+| Top suggestion wrong but rated medium or high | 0 of 5 |
+| Wrong records rated high (anywhere in the list) | 0 |
+| Wrong records rated medium or high (anywhere in the list) | 1 |
 | Model cost, whole run | $0.0000 |
 
 ## Confidence calibration

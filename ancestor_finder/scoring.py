@@ -51,6 +51,13 @@ def _surname(q: PersonQuery, r: Record) -> ScorePart | None:
         score, h = names.surname_similarity(s, r.surname, r.farm)
         if score > best:
             best, how = score, h
+    # A married woman is usually recorded under her husband's surname.
+    if best < 0.9 and q.sex.lower()[:1] == "f" and q.spouse_name and r.surname:
+        husband_sur = " ".join(q.spouse_name.split()[1:])
+        if husband_sur:
+            s_, _ = names.surname_similarity(husband_sur, r.surname)
+            if s_ >= 0.9:
+                best, how = 0.9, f"record surname {r.surname} is her husband's surname"
     # Baptisms often give the child's given name only; the father's name in the
     # record then implies the patronymic (Ole -> Olsen / Olsdatter).
     if best < 0.9 and not r.surname and r.father_name:
@@ -127,21 +134,10 @@ def _family(q: PersonQuery, r: Record) -> ScorePart | None:
             scores.append(0.5)
             hows.append(f"{rel} not listed in record")
             continue
-        g = names.given_name_similarity(qv, rv)
-        q_sur = " ".join(qv.split()[1:])
-        r_sur = " ".join(rv.split()[1:])
-        if q_sur and r_sur:
-            s, _ = names.surname_similarity(q_sur, r_sur)
-            sim = 0.5 * g + 0.5 * s
-            # Common given names (Ole, Hans) don't identify a parent; a clearly
-            # different surname or patronymic means a different person.
-            if s < 0.6:
-                sim = min(sim, 0.6)
-        else:
-            sim = g
+        sim, female = _relation_similarity(rel, qv, rv, q.sex)
         scores.append(sim)
         if sim >= 0.9:
-            hows.append(f"{rel} {rv} vs {qv}: match")
+            hows.append(f"{rel} {rv} vs {qv}: match" + (" (first name; surname can change at marriage)" if female else ""))
         elif sim < CONFLICT_BELOW:
             hows.append(f"{rel} {rv} vs {qv}: CONFLICT")
         else:
@@ -153,20 +149,39 @@ def _family(q: PersonQuery, r: Record) -> ScorePart | None:
 CONFLICT_BELOW = 0.75
 
 
+def _relation_similarity(rel: str, qv: str, rv: str, q_sex: str) -> tuple[float, bool]:
+    """Similarity of a queried relative's name to the one in the record.
+
+    Women usually appear under their husband's surname after marriage, so a
+    mother, or the wife of a man, is compared on given name only. Men keep
+    their surname, so a clearly different surname or patronymic means a
+    different person (common given names like Ole or Hans identify no one).
+    Returns (similarity, compared_on_given_name_only).
+    """
+    g = names.given_name_similarity(qv, rv)
+    female = rel == "mother" or (rel == "spouse" and q_sex.lower()[:1] != "f")
+    q_sur = " ".join(qv.split()[1:])
+    r_sur = " ".join(rv.split()[1:])
+    if female or not (q_sur and r_sur):
+        return g, female
+    s_, _ = names.surname_similarity(q_sur, r_sur)
+    sim = 0.5 * g + 0.5 * s_
+    return (min(sim, 0.6) if s_ < 0.6 else sim), False
+
+
 def family_status(q: PersonQuery, r: Record) -> tuple[int, int, int]:
     """(relations asked, relations listed in record, conflicts)."""
     asked = listed = conflicts = 0
-    for qv, rv in ((q.father_name, r.father_name), (q.mother_name, r.mother_name),
-                   (q.spouse_name, r.spouse_name)):
+    for rel, qv, rv in (("father", q.father_name, r.father_name), ("mother", q.mother_name, r.mother_name),
+                        ("spouse", q.spouse_name, r.spouse_name)):
         if not qv:
             continue
         asked += 1
         if not rv:
             continue
         listed += 1
-        part = _family(PersonQuery(given_name="x", father_name=qv), Record(
-            record_id="", source="", record_type="", year=0, url="", father_name=rv))
-        if part and part.score < CONFLICT_BELOW:
+        sim, _ = _relation_similarity(rel, qv, rv, q.sex)
+        if sim < CONFLICT_BELOW:
             conflicts += 1
     return asked, listed, conflicts
 
@@ -199,6 +214,8 @@ def score_record(q: PersonQuery, r: Record) -> Candidate:
     if r.birth_year_from_age:
         notes.append("birth year in record is computed from stated age (often ±1)")
     conf = confidence_for(score)
+    if by is not None and by.score == 0.0:
+        conf = "low"   # contradicts a known fact about the person
     if asked and not listed and conf == "high":
         conf = "medium"
         notes.append("record lists none of the queried family members, so namesakes cannot be ruled out")
@@ -220,7 +237,8 @@ def rank(candidates: list[Candidate]) -> list[Candidate]:
     # Several records can describe the same person (census + baptism), so a
     # rival only counts when it looks like a different person. If two strong
     # candidates are clearly different people, neither can be "high".
-    strong = [c for c in ranked[:40] if c.score >= HIGH - AMBIGUITY_GAP]
+    # every candidate strong enough to be rated high, however far down the list
+    strong = [c for c in ranked if c.score >= HIGH - AMBIGUITY_GAP]
     for c in strong:
         rival = next((o for o in strong if o is not c and o.score >= c.score - AMBIGUITY_GAP * 3
                       and _looks_like_different_person(c.record, o.record)), None)

@@ -108,3 +108,27 @@ def test_page_split(tmp_path, monkeypatch):
         stdout = "page one\fpage two".encode()
     monkeypatch.setattr(subprocess, "run", lambda *a, **k: R())
     assert B.pdf_to_pages(tmp_path / "x.pdf") == ["page one", "page two"]
+
+
+def test_second_housewife_starts_her_own_family():
+    ms = [Member("Lars Larsen", "m", "hf"), Member("Marte Larsen", "f", "hm"),
+          Member("Johan Larsen", "m", "s"), Member("Berte Olsen", "f", "hm"),
+          Member("Nils Andersen", "m", "s")]
+    assign_relations(ms)
+    assert ms[2].relations == {"father": "Lars Larsen", "mother": "Marte Larsen"}
+    assert ms[4].relations == {"mother": "Berte Olsen"}
+
+
+def test_labelled_note_is_not_added_to_name(tmp_path, monkeypatch):
+    page = "\n".join([
+        "Bustadnr. Krets           Namn                           Gnr.          Bnr.",
+        "0001      001 Nes         Bakken                         1             1",
+        "Nr. Namn                   Kj. Siv. Bust.Fam.        Yrkje                     Fødd      Fødestad",
+        "001 Lars Larsen           m g b hf                  Arbeider                31.08.1877 Sverige",
+        "    Heimvendt norsk-amerikanar: Utflytta frå Noreg: 1907",
+        "002 Marte Larsen           k g b hm                  Husmor                    06.10.1879 Varteig",
+    ])
+    monkeypatch.setattr(B, "pdf_to_pages", lambda pdf: ["intro", page])
+    recs = B.parse_booklet(tmp_path / "f9100199_hefte.pdf", 1910)
+    assert [r.full_name for r in recs] == ["Lars Larsen", "Marte Larsen"]
+    assert recs[0].spouse_name == "Marte Larsen" and recs[0].farm == "Bakken"

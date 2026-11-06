@@ -67,8 +67,11 @@ def assign_relations(members: list[Member]) -> None:
     head: Member | None = None
     wife: Member | None = None
     for m in members:
-        if is_head(m.role, m.sex) or (head is None and m.sex == "f" and is_wife(m.role)):
-            # a wife-coded woman with no head before her (e.g. a widow, "hm") heads the family
+        if is_head(m.role, m.sex) or (m.sex == "f" and is_wife(m.role) and (
+                head is None or wife is not None or head.sex == "f")):
+            # A wife-coded woman with no husband before her heads her own family:
+            # a widow listed first, or a second "hm" after the household's wife
+            # (e.g. a widowed mother-in-law with her own children).
             head, wife = m, None
             continue
         if head is not None and wife is None and is_wife(m.role) and head.sex != "f":

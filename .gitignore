@@ -9,3 +9,6 @@ logs/*.jsonl
 data/raw/
 data/real/
 *.pickle
+# real family data stays private (the repository is public)
+tests/family_people.yaml
+reports/accuracy_real.md

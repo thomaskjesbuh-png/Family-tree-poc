@@ -46,7 +46,9 @@ def find(q: PersonQuery, source: Source, helper=None) -> Result:
     warnings: list[str] = []
     records = source.search(q)
     limit = cutoff_year()
-    records = [r for r in records if r.year <= limit]
+    # nobody appears in a census taken before they were born
+    earliest = q.birth_year - q.birth_year_tolerance if q.birth_year else None
+    records = [r for r in records if r.year <= limit and (earliest is None or r.year >= earliest)]
 
     ready: list[Record] = []
     for r in records:

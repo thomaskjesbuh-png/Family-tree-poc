@@ -18,7 +18,7 @@ the right record?** The answer goes in `reports/accuracy.md`.
 | Census importer | 444,560 Østfold person records from the 1801, 1865, 1900 and 1910 censuses. Counts match the booklets' own totals to within 23 of 394,442 (0.006%) |
 | Model steps (Haiku extraction, Sonnet same-person check) | Built and tested with a fake client. **Not yet run against the real API** |
 | Unit tests | 73 passing |
-| Accuracy report | Generated for 5 fictional cases. Ready to run on 20 real ancestors against the imported records |
+| Accuracy report | Fictional: `reports/accuracy.md`. Real, from Thomas's family tree: `reports/accuracy_real.md` (private, git-ignored). 6 people with a confirmed 1910 record are all in the top 3 (3 first, the other 3 behind their probable 1900 record); both "born after 1910" cases correctly return nothing; no wrong record rated high |
 | Live Digitalarkivet source | Intentionally not implemented: robots.txt bars AI agents |
 
 The sample records in `data/sample_records.csv` are **invented** and marked
@@ -189,8 +189,13 @@ tests/                  unit tests + known_people.yaml
    downloadable files and of the 1910 API. Licence and commercial use come next.
 2. **Census import is done** for Østfold (1801, 1865, 1900, 1910). Not
    available as data: the 1875 census and church records.
-3. **Thomas: fill in 20 real ancestors** in `tests/known_people.yaml` (copy
-   the `R01` block, set `enabled: true`), including a few very common names.
+3. **Thomas: confirm the suggestions** in the "To check by hand" section of
+   `reports/accuracy_real.md` and the `probable_record_ids` in
+   `tests/family_people.yaml` (both private and git-ignored, because this
+   repository is public), by opening the linked booklet pages. Move
+   confirmed ids into `expected.record_ids`. Add more people any time; the
+   test set has no fixed size, and people found by hand in your browser are
+   the best test cases.
 4. **Run the real test set** on the imported records:
    `python evaluate.py --kind real --records data/real/ostfold_records.csv`.
    Since there are no church records, use census entries as the expected

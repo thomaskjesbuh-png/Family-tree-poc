@@ -29,16 +29,20 @@ def evaluate_case(case: dict, source, helper) -> dict:
     person["case_id"] = case["id"]
     q = PersonQuery.from_dict(person)
     expected = set(case.get("expected", {}).get("record_ids") or [])
+    verified = case.get("expected", {}).get("verified", True)
+    # records the tool found that are very likely the same person but that no
+    # source has confirmed: shown separately, counted neither right nor wrong
+    probable = set(case.get("expected", {}).get("probable_record_ids") or [])
     try:
         res = find(q, source, helper=helper)
     except (PrivacyError, SourceUnavailable) as e:
         return {"id": case["id"], "status": "error", "error": str(e), "candidates": [],
-                "expected": sorted(expected), "note": case.get("note", "")}
+                "expected": sorted(expected), "note": case.get("note", ""), "verified": verified}
 
     ids = [c.record.record_id for c in res.candidates]
     rank = next((i + 1 for i, rid in enumerate(ids) if rid in expected), None)
     claimed = [c for c in res.candidates if c.confidence in ("high", "medium")]
-    false_matches = [c for c in claimed if c.record.record_id not in expected]
+    false_matches = [c for c in claimed if c.record.record_id not in expected | probable]
 
     if not expected:
         status = "correct: no match" if not claimed else "false claim"
@@ -51,11 +55,18 @@ def evaluate_case(case: dict, source, helper) -> dict:
     else:
         status = "missed"
 
+    if not verified:
+        status = "to check by hand"
     return {
         "id": case["id"], "note": case.get("note", ""), "status": status, "rank": rank,
+        "verified": verified,
+        "top": [(c.record.record_id, c.record.full_name, c.record.birth_year,
+                 c.record.farm, c.record.municipality or c.record.parish, c.record.year,
+                 c.confidence, c.record.url) for c in res.candidates[:3]],
         "expected": sorted(expected),
         "candidates": [(c.record.record_id, c.confidence, round(c.score, 2),
-                        c.record.record_id in expected, (c.judge or {}).get("verdict"))
+                        True if c.record.record_id in expected else ("probable" if c.record.record_id in probable else False),
+                        (c.judge or {}).get("verdict"))
                        for c in res.candidates],
         "false_matches": [(c.record.record_id, c.confidence) for c in false_matches],
         "warnings": res.warnings, "llm_used": res.llm_used,
@@ -63,6 +74,8 @@ def evaluate_case(case: dict, source, helper) -> dict:
 
 
 def write_report(results: list[dict], path: Path, *, source_desc: str, llm: bool, budget) -> None:
+    to_check = [r for r in results if not r.get("verified", True)]
+    results = [r for r in results if r.get("verified", True)]
     n = len(results)
     with_answer = [r for r in results if r["expected"]]
     no_answer = [r for r in results if not r["expected"]]
@@ -71,12 +84,18 @@ def write_report(results: list[dict], path: Path, *, source_desc: str, llm: bool
     missed = sum(r["status"] == "missed" for r in with_answer)
     correct_none = sum(r["status"] == "correct: no match" for r in no_answer)
     false_total = sum(len(r.get("false_matches", [])) for r in results)
+    # the measure that matters to a user: the top suggestion is wrong but looks trustworthy
+    top_wrong = sum(1 for r in results if r["candidates"] and r["candidates"][0][3] is False
+                    and r["candidates"][0][1] in ("high", "medium"))
+    wrong_high = sum(1 for r in results for c in r["candidates"] if c[3] is False and c[1] == "high")
 
     calib = defaultdict(lambda: [0, 0])  # level -> [candidates, correct]
     for r in results:
         for rid, conf, _score, ok, _v in r["candidates"]:
+            if ok == "probable":
+                continue
             calib[conf][0] += 1
-            calib[conf][1] += int(ok)
+            calib[conf][1] += int(ok is True)
 
     per_case = getattr(budget, "per_case", {}) if budget else {}
     total_cost = getattr(budget, "spent_usd", 0.0) if budget else 0.0
@@ -102,7 +121,9 @@ def write_report(results: list[dict], path: Path, *, source_desc: str, llm: bool
         f"| Correct record in top 3 | {top3} of {len(with_answer)} |",
         f"| Missed | {missed} of {len(with_answer)} |",
         f"| \"No match\" cases correctly left empty | {correct_none} of {len(no_answer)} |",
-        f"| False matches at medium or high confidence | {false_total} |",
+        f"| Top suggestion wrong but rated medium or high | {top_wrong} of {n} |",
+        f"| Wrong records rated high (anywhere in the list) | {wrong_high} |",
+        f"| Wrong records rated medium or high (anywhere in the list) | {false_total} |",
         f"| Model cost, whole run | ${total_cost:.4f} |",
         "",
         "## Confidence calibration",
@@ -116,10 +137,12 @@ def write_report(results: list[dict], path: Path, *, source_desc: str, llm: bool
         c, ok = calib[lvl]
         L.append(f"| {lvl} | {c} | {ok} | {(ok / c * 100):.0f}% |" if c else f"| {lvl} | 0 | 0 | n/a |")
     L += ["", "## Per person", "",
-          "| Case | Result | Correct rank | False matches | Model cost |",
+          "| Case | Result | Correct rank | Wrong records rated high / medium | Model cost |",
           "| --- | --- | --- | --- | --- |"]
     for r in results:
-        fm = ", ".join(f"{rid} ({conf})" for rid, conf in r.get("false_matches", [])) or "none"
+        fms = r.get("false_matches", [])
+        highs = [rid for rid, conf in fms if conf == "high"]
+        fm = (", ".join(highs) + " (high); " if highs else "") + f"{len(fms) - len(highs)} medium"
         cost = per_case.get(r["id"], 0.0)
         L.append(f"| {r['id']} | {r['status']} | {r.get('rank') or '-'} | {fm} | ${cost:.4f} |")
     L += ["", "## Details", ""]
@@ -133,13 +156,31 @@ def write_report(results: list[dict], path: Path, *, source_desc: str, llm: bool
             L += ["| Rank | Record | Confidence | Score | Correct | Model verdict |",
                   "| --- | --- | --- | --- | --- | --- |"]
             for i, (rid, conf, score, ok, verdict) in enumerate(r["candidates"], 1):
-                L.append(f"| {i} | {rid} | {conf} | {score} | {'yes' if ok else 'no'} | {verdict or '-'} |")
+                okw = "yes" if ok is True else ("probable (unconfirmed)" if ok == "probable" else "no")
+                L.append(f"| {i} | {rid} | {conf} | {score} | {okw} | {verdict or '-'} |")
             L.append("")
         else:
             L += ["No candidates reported.", ""]
         for w in r.get("warnings", []):
             L.append(f"- warning: {w}")
         if r.get("warnings"):
+            L.append("")
+    if to_check:
+        L += ["## To check by hand", "",
+              "These people have no confirmed record yet, so they are not counted above. "
+              "Open each suggestion, and if one is right, put its id in `expected.record_ids` "
+              "and set `verified: true`.", ""]
+        for r in to_check:
+            L += [f"### {r['id']}", "", r.get("note") or "", ""]
+            if r.get("error"):
+                L += [f"Error: {r['error']}", ""]
+                continue
+            if not r.get("top"):
+                L += ["No candidates found.", ""]
+                continue
+            L += ["| Record | Name | Born | Place | Census | Confidence |", "| --- | --- | --- | --- | --- | --- |"]
+            for rid, name, by, farm, muni, year, conf, url in r["top"]:
+                L.append(f"| [{rid}]({url}) | {name} | {by or '?'} | {', '.join(x for x in (farm, muni) if x)} | {year} | {conf} |")
             L.append("")
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(L) + "\n", encoding="utf-8")

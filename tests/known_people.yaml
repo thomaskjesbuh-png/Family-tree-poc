@@ -81,24 +81,15 @@ cases:
     expected:
       record_ids: []
 
-  # ---------------- real ancestors (Thomas fills these in) ----------------
-  # Copy this block 20 times. Include a few very common names (Ole Hansen,
-  # Anne Olsdatter, ...) to test confusion between namesakes.
-  - id: R01
-    kind: real
-    enabled: false
-    note: ""
-    person:
-      given_name: ""
-      surname: ""
-      name_variants: []
-      birth_year: null
-      birthplace: ""
-      county: Østfold
-      sex: ""
-      father_name: ""
-      mother_name: ""
-      spouse_name: ""
-    expected:
-      record_ids: []      # ids as they appear in the source / dataset
-      links: []           # direct links to the correct records
+  # ---------------- real people ----------------
+  # Real family cases live in tests/family_people.yaml, which is git-ignored
+  # because this repository is public. Run them with:
+  #   python evaluate.py --cases tests/family_people.yaml --kind real \
+  #       --records data/real/ostfold_records.csv --out reports/accuracy_real.md
+  # Use the same format as below.
+  # ---- template for more people ----
+  # - id: R09-...
+  #   kind: real
+  #   note: "Who they are, and where the answer comes from (source + link)."
+  #   person: {given_name: "", surname: "", birth_year: null, birthplace: "", county: Østfold, sex: ""}
+  #   expected: {record_ids: [], verified: true}
