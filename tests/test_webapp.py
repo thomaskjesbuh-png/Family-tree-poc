@@ -85,3 +85,14 @@ def test_relatives_merges_spellings_of_one_parent(client):
     mothers = [s for s in data["suggestions"] if s["relation"] == "mother"]
     assert len(mothers) == 1 and mothers[0]["rivals"] == 0 and len(mothers[0]["evidence"]) == 2
     assert mothers[0]["also_written"]
+
+
+def test_families_for_someone_born_after_the_last_census(client):
+    data = client.post("/api/families", json={"surname": "Hansen", "birth_year": "1913", "birthplace": "Rakkestad"}).get_json()
+    assert data["year"] == 1910 and data["families"]
+    top = data["families"][0]
+    assert top["place"] == "Rakkestad" and top["father"]["name"] == "Lars Hansen" and top["mother"]["name"] == "Karen Hansen"
+    # couples far too old to be the parents are left out
+    old = client.post("/api/families", json={"surname": "Larsen", "birth_year": "1915", "birthplace": "Rakkestad"}).get_json()
+    assert all(f["mother"] is None or f["mother"]["birth_year"] >= 1915 - 48 for f in old["families"])
+    assert client.post("/api/families", json={"surname": ""}).status_code == 400

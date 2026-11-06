@@ -23,6 +23,14 @@
   const first = p => ((p && p.given_name) || "").split(" ")[0];
   const sexOf = n => (n === 1 ? "" : n % 2 === 0 ? "m" : "f");
   const traceable = p => p && p.birth_year && Number(p.birth_year) <= CUTOFF;
+  const LAST_CENSUS = Math.max(...S.coverage.years);
+  // born after the last census we have, but old enough: they aren't in it, their parents probably are
+  const afterCensus = p => traceable(p) && Number(p.birth_year) > LAST_CENSUS;
+  const objPron = n => (sexOf(n) === "m" ? "ham" : sexOf(n) === "f" ? "henne" : "personen");
+  const subjPron = n => (sexOf(n) === "m" ? "han" : sexOf(n) === "f" ? "hun" : "personen");
+  /* parent birth year estimated from the child's: fathers about 30, mothers about 27 years older */
+  const estimateFor = n => { const c = person(Math.floor(n / 2)); return n > 1 && c && c.birth_year ? Number(c.birth_year) - (n % 2 === 0 ? 30 : 27) : null; };
+  const bornText = p => (p.birth_year ? (p.birth_year_estimated ? `omkr. ${p.birth_year}` : p.birth_year) : "?");
   const keptOf = p => Object.entries((p && p.kept) || {}).filter(([, d]) => d.status === "confirmed");
   const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
@@ -46,7 +54,7 @@
     const p = person(n), f = person(2 * n), m = person(2 * n + 1), partner = n > 1 ? person(n ^ 1) : null;
     return {
       given_name: p.given_name || "", surname: p.surname || "", birth_year: p.birth_year || "", birthplace: p.birthplace || "",
-      sex: sexOf(n), birth_year_tolerance: "2", county: "", name_variants: "",
+      sex: sexOf(n), birth_year_tolerance: p.birth_year_estimated ? "5" : "2", county: "", name_variants: "",
       father_name: f ? fullName(f) : "", mother_name: m ? fullName(m) : "", spouse_name: partner ? fullName(partner) : "",
     };
   }
@@ -133,7 +141,7 @@
       b.setAttribute("aria-label", `${fullName(p)}, ${relationLabel(n).toLowerCase()}`);
       b.appendChild(el("span", "tn", fullName(p) || "(uten navn)"));
       const ty = el("span", "ty");
-      const yrs = p.birth_year ? (p.death_year ? `${p.birth_year}–${p.death_year}` : `${p.birth_year}–`) : "?";
+      const yrs = p.birth_year ? (p.death_year ? `${bornText(p)}–${p.death_year}` : `${bornText(p)}–`) : "?";
       ty.appendChild(nums("span", null, yrs));
       if (keptOf(p).length) { const ic = el("span"); ic.innerHTML = CHECK; ic.title = "Funnet i kildene"; ty.appendChild(ic); }
       b.appendChild(ty);
@@ -156,7 +164,7 @@
     if (kept.length) { const bw = el("div"); bw.appendChild(badge("confirmed")); body.appendChild(bw); }
     const dl = el("dl", "sp-facts");
     const fact = (k, v) => { dl.appendChild(el("dt", null, k)); dl.appendChild(nums("dd", null, v)); };
-    fact("Født", [p.birth_year || "?", p.birthplace].filter(Boolean).join(", "));
+    fact("Født", [p.birth_year ? (p.birth_year_estimated ? `omkring ${p.birth_year} (anslått)` : p.birth_year) : "?", p.birthplace].filter(Boolean).join(", "));
     if (p.death_year) fact("Død", p.death_year);
     const f = person(2 * n), m = person(2 * n + 1);
     fact("Foreldre", f || m ? [f && fullName(f), m && fullName(m)].filter(Boolean).join(" og ") : "Ikke lagt til ennå");
@@ -168,13 +176,15 @@
     let state;
     if (!p.birth_year) state = "Legg til fødselsår, så ser vi om vi kan spore personen.";
     else if (!traceable(p)) state = `Levende minne. Personer født etter ${CUTOFF} søkes ikke opp.`;
+    else if (afterCensus(p)) state = `Født etter siste folketelling vi har (${LAST_CENSUS}), så ${subjPron(n)} står ikke i den. Foreldrene gjør trolig det.`;
     else if (kept.length) state = `Funnet i ${kept.length} ${kept.length === 1 ? "kilde" : "kilder"}. Let gjerne videre.`;
     else state = "Klar til å spores i folketellingene.";
     card.appendChild(el("p", "state", state));
 
     const acts = el("div", "sp-actions");
-    if (traceable(p)) acts.appendChild(btn(kept.length ? "Let videre" : "Følg sporet", "sp-btn sp-btn-primary", () => openTrail(n)));
-    if (traceable(p) && (!f || !m)) acts.appendChild(btn("Let etter foreldrene", "sp-btn", () => findRelatives([n])));
+    if (afterCensus(p) && (!f || !m)) acts.appendChild(btn(`Let etter familien i ${LAST_CENSUS}`, "sp-btn sp-btn-primary", () => findRelatives([n])));
+    else if (traceable(p) && !afterCensus(p)) acts.appendChild(btn(kept.length ? "Let videre" : "Følg sporet", "sp-btn sp-btn-primary", () => openTrail(n)));
+    if (traceable(p) && !afterCensus(p) && (!f || !m)) acts.appendChild(btn("Let etter foreldrene", "sp-btn", () => findRelatives([n])));
     if (!f) acts.appendChild(btn("Legg til far", "sp-btn", () => edit(2 * n)));
     if (!m) acts.appendChild(btn("Legg til mor", "sp-btn", () => edit(2 * n + 1)));
     acts.appendChild(btn("Endre", "sp-btn", () => edit(n)));
@@ -222,7 +232,12 @@
   dlg.addEventListener("close", () => {
     if (dlg.returnValue === "save") {
       const d = cleanPerson(Object.fromEntries(new FormData(ef).entries()));
-      if (d.given_name) { tree[String(editing)] = Object.assign(person(editing) || {}, d); focus = editing; save(); }
+      if (d.given_name) {
+        const old = person(editing) || {};
+        if (old.birth_year_estimated && d.birth_year !== old.birth_year) delete old.birth_year_estimated;   // typed a real year
+        if (!d.birth_year) { delete old.birth_year; delete old.birth_year_estimated; }
+        tree[String(editing)] = Object.assign(old, d); focus = editing; save();
+      }
     } else if (dlg.returnValue === "remove" && editing !== 1) {
       for (const k of Object.keys(tree)) { let m = Number(k); while (m > editing) m = Math.floor(m / 2); if (m === editing) delete tree[k]; }
       focus = Math.floor(editing / 2); save();
@@ -370,7 +385,7 @@
     else {
       const t = el("table"); t.innerHTML = "<thead><tr><th>Navn</th><th>Født</th><th>Oppført som</th></tr></thead>";
       const tb = el("tbody");
-      for (const h of hh) { const tr = el("tr", h.record_id === x.record_id ? "me" : null); [h.name, h.birth_year ?? "?", h.role || ""].forEach(v => tr.appendChild(el("td", null, v))); tb.appendChild(tr); }
+      for (const h of hh) { const tr = el("tr", h.record_id === x.record_id ? "me" : null); [h.name, h.birth_year ?? "?", roleText(h.role)].forEach(v => tr.appendChild(el("td", null, v))); tb.appendChild(tr); }
       t.appendChild(tb); house.appendChild(t);
     }
     body.append(why, house);
@@ -473,23 +488,30 @@
   /* ---------------- nye spor i slekta: foreldre fra husstanden ---------------- */
   const gen_s = name => (/[sxz]$/i.test(name) ? `${name}'` : `${name}s`);   // Norsk genitiv: Oles, Hans'
   const missingParents = n => !person(2 * n) || !person(2 * n + 1);
-  const seekers = () => Object.keys(tree).map(Number)
-    .filter(n => traceable(person(n)) && missingParents(n))
-    .sort((a, b) => gen(b) - gen(a) || a - b);
+  // everyone missing a parent, oldest generation first
+  const seekers = () => Object.keys(tree).map(Number).filter(missingParents).sort((a, b) => gen(b) - gen(a) || a - b);
 
   $("#find-relatives").addEventListener("click", () => findRelatives(seekers()));
   $("#rel-back").addEventListener("click", () => route());
 
+  let lastList = [];
   async function findRelatives(list) {
+    lastList = list;
     show("relatives-view");
     const host = $("#rel-results"), prog = $("#rel-progress");
     host.innerHTML = ""; prog.textContent = "";
     if (!list.length) { host.appendChild(noSeekers()); return; }
-    list = list.slice(0, 8);
+    list = list.slice(0, 10);
     let any = false;
     for (const [i, n] of list.entries()) {
       const p = person(n);
-      prog.textContent = `Leter etter foreldrene til ${fullName(p)} (${i + 1} av ${list.length}) …`;
+      if (!p) continue;
+      prog.textContent = `Ser på ${fullName(p)} (${i + 1} av ${list.length}) …`;
+      const group = el("section", "rel-group");
+      host.appendChild(group);
+      if (!p.birth_year) { group.appendChild(el("h2", null, fullName(p))); group.appendChild(yearHint(n)); continue; }
+      if (!traceable(p)) { group.appendChild(el("h2", null, fullName(p))); group.appendChild(livingHint(n)); continue; }
+      if (afterCensus(p)) { if (await familyGroup(n, group)) any = true; continue; }
       let data;
       try {
         const res = await fetch("/api/relatives", { method: "POST", headers: { "Content-Type": "application/json" },
@@ -498,14 +520,114 @@
         if (!res.ok) throw new Error(data.error);
       } catch { data = { suggestions: [] }; }
       const sugg = data.suggestions.filter(sg => (sg.relation === "father" ? !person(2 * n) : !person(2 * n + 1)));
-      const group = el("section", "rel-group");
       group.appendChild(el("h2", null, `Foreldrene til ${fullName(p)}`));
       if (!sugg.length) group.appendChild(el("p", "muted", `Ingen nye spor etter foreldrene til ${first(p)}, foreløpig. Følg sporet til ${first(p)} for å se alle treffene.`));
       sugg.forEach((sg, j) => group.appendChild(relativeCard(n, sg, !any && j === 0 && sg.confidence === "high")));
       if (sugg.length) any = true;
-      host.appendChild(group);
     }
-    prog.textContent = any ? "Ferdig. Legg til dem som stemmer, og let igjen for neste generasjon." : "Ferdig. Ingen nye spor denne gangen.";
+    prog.textContent = any ? "Ferdig. Legg til dem som stemmer, og let igjen for neste generasjon."
+      : "Ferdig. Ingen nye spor i kildene denne gangen, men se tipsene under.";
+  }
+
+  function hintCard(title, text, actions) {
+    const c = el("article", "sp-card rel-card");
+    c.appendChild(el("span", "sp-eyebrow sp-muted", "Neste steg"));
+    c.appendChild(el("h3", "sp-find-title", title));
+    c.appendChild(el("p", "sp-muted", text));
+    const a = el("div", "sp-actions"); actions.forEach(x => a.appendChild(x)); c.appendChild(a);
+    return c;
+  }
+
+  function yearHint(n) {
+    const p = person(n), est = estimateFor(n), child = person(Math.floor(n / 2));
+    if (est) {
+      const use = btn(`Bruk omkring ${est}`, "sp-btn sp-btn-primary", () => {
+        Object.assign(person(n), { birth_year: String(est), birth_year_estimated: true }); save(); renderTree(); findRelatives(lastList);
+      });
+      return hintCard(`Når ble ${first(p)} født?`,
+        `Vi vet ikke fødselsåret. Siden ${first(child)} er født ${child.birth_year}, er ${first(p)} trolig født omkring ${est}. ` +
+        (est <= CUTOFF ? `Det er gammelt nok til at vi kan lete, med god slingring.` : `Det er nær grensen for levende minne (${CUTOFF}), så foreldrene er det neste sporet.`),
+        [use, btn("Skriv inn fødselsår", "sp-btn", () => edit(n))]);
+    }
+    return hintCard(`Når ble ${first(p)} født?`, "Legg til et fødselsår, gjerne et anslag, så ser vi om vi kan lete etter familien.",
+      [btn(`Endre ${first(p)}`, "sp-btn", () => edit(n))]);
+  }
+
+  function livingHint(n) {
+    const p = person(n), by = Number(p.birth_year), fy = by - 30, my = by - 27;
+    const old = Math.min(fy, my) <= CUTOFF;
+    const acts = [];
+    if (!person(2 * n)) acts.push(btn("Legg til far", "sp-btn", () => edit(2 * n)));
+    if (!person(2 * n + 1)) acts.push(btn("Legg til mor", "sp-btn", () => edit(2 * n + 1)));
+    return hintCard(`Foreldrene til ${first(p)}`,
+      `${first(p)} er født ${by}, innenfor levende minne, så vi søker ikke etter ${objPron(n)}. Foreldrene er trolig født omkring ${Math.min(fy, my)}–${Math.max(fy, my)}` +
+      (old ? `, gamle nok til at vi kan lete etter dem. Legg dem til hvis du vet hvem de er, også uten fødselsår.` : `. Legg dem til hvis du vet hvem de er.`), acts);
+  }
+
+  // Census role codes, written out. Unknown codes are shown as they stand.
+  const ROLES = { hf: "husfar", hm: "husmor", s: "sønn", d: "datter", tj: "tjener", tjd: "tjenestejente", tjg: "tjenestegutt",
+    fl: "losjerende", b: "barn", sb: "sønnebarn", db: "datterbarn", fs: "føderådsmann", fk: "føderådskone" };
+  const roleText = r => ROLES[(r || "").trim().toLowerCase()] || r || "";
+
+  async function familyGroup(n, group) {
+    const p = person(n);
+    group.appendChild(el("h2", null, `Familien til ${fullName(p)}`));
+    if (!p.surname) {
+      group.appendChild(hintCard("Vi trenger et etternavn", `${first(p)} er født ${p.birth_year}, etter siste folketelling vi har. For å finne familien i ${LAST_CENSUS} leter vi etter navnet, så legg til etternavnet.`,
+        [btn(`Endre ${first(p)}`, "sp-btn", () => edit(n))]));
+      return false;
+    }
+    let data;
+    try {
+      const res = await fetch("/api/families", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ surname: p.surname, birth_year: p.birth_year, birthplace: p.birthplace || "" }) });
+      data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+    } catch { data = { families: [] }; }
+    if (!data.families.length) {
+      group.appendChild(el("p", "muted", `${first(p)} er født ${p.birth_year}, etter siste folketelling vi har, så vi lette etter foreldrene: familier med navnet ${p.surname} i folketellingen ${data.year || LAST_CENSUS}. Vi fant ingen. Spor har foreløpig folketellingene for ${S.coverage.counties.join(", ")}${p.birthplace ? `, og bodde familien i ${p.birthplace} eller et annet sted utenfor, finner vi den ikke ennå` : `. Bodde familien et annet sted, finner vi den ikke ennå`}.`));
+      return false;
+    }
+    group.appendChild(el("p", "muted", `${first(p)} er født ${p.birth_year}, etter siste folketelling vi har. Her er familier med navnet ${p.surname} i folketellingen ${data.year || LAST_CENSUS}${p.birthplace ? `, de fra ${p.birthplace} først` : ""}, med foreldre i riktig alder.`));
+    data.families.slice(0, 5).forEach(f => group.appendChild(familyCard(n, f)));
+    return true;
+  }
+
+  function familyCard(n, fam) {
+    const p = person(n), card = el("article", "sp-card rel-card");
+    const head = el("div", "rel-head");
+    head.appendChild(el("span", "sp-eyebrow sp-muted", "Mulig familie"));
+    head.appendChild(badge("unverified"));
+    card.appendChild(head);
+    card.appendChild(el("h3", "sp-find-title", `${fam.farm ? `På ${fam.farm}, ` : "I "}${fam.place} i ${fam.year}`));
+    const who = [fam.father && `${fam.father.name}, født ${fam.father.birth_year ?? "?"}`, fam.mother && `${fam.mother.name}, født ${fam.mother.birth_year ?? "?"}`].filter(Boolean);
+    const kids = fam.members.filter(m => /^(s|d|søn|sønn|datter|deres|hans|hendes)/i.test(m.role || "")).length;
+    card.appendChild(el("p", "sp-find-story", `${who.join(" og ")} bor her${kids ? ` med ${kids} barn` : ""}. Hvis ${first(p)} er født ${p.birth_year} i denne familien, kan de være foreldrene.`));
+    const t = el("table"); t.innerHTML = "<thead><tr><th>Navn</th><th>Født</th><th>Oppført som</th></tr></thead>";
+    const tb = el("tbody"); fam.members.forEach(m => { const tr = el("tr"); [m.name, m.birth_year ?? "?", roleText(m.role)].forEach(v => tr.appendChild(el("td", null, v))); tb.appendChild(tr); });
+    t.appendChild(tb); card.appendChild(t);
+    card.appendChild(el("div", "sp-source", fam.source));
+    const acts = el("div", "sp-actions");
+    acts.appendChild(btn("Legg til som foreldre", "sp-btn", () => addFamily(n, fam, card)));
+    if (fam.link) { const a = el("a", "sp-btn", "Se kilden"); a.href = fam.link; a.target = "_blank"; a.rel = "noopener"; acts.appendChild(a); }
+    acts.appendChild(btn("Ikke denne", "sp-btn sp-btn-quiet", () => card.classList.add("aside")));
+    card.appendChild(acts);
+    return card;
+  }
+
+  function addFamily(n, fam, card) {
+    for (const [slot, par] of [[2 * n, fam.father], [2 * n + 1, fam.mother]]) {
+      if (!par || person(slot)) continue;
+      const np = cleanPerson({ given_name: par.given_name, surname: par.surname, birth_year: String(par.birth_year || ""), birthplace: par.birthplace || "" });
+      np.kept = { [par.record_id]: { status: "confirmed", confidence: "medium", year: fam.year, name: par.name,
+        place: [fam.farm, fam.place].filter(Boolean).join(", "), source: fam.source.replace(/ · \S+$/, ` · ${par.record_id}`),
+        reasons: [`Mulig familie til ${fullName(person(n))}`] } };
+      tree[String(slot)] = np;
+    }
+    save();
+    card.classList.add("done");
+    const b = card.querySelector(".sp-actions .sp-btn"); b.textContent = "Lagt til i treet"; b.disabled = true;
+    card.parentElement.querySelectorAll(".rel-card").forEach(c => { if (c !== card) c.classList.add("aside"); });
   }
 
   function noSeekers() {

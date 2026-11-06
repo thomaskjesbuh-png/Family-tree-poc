@@ -199,6 +199,102 @@ def create_app(records_path: Path | str | None = None) -> Flask:
         return jsonify({"suggestions": suggestions,
                         "basis": "kept" if any(h == "kept" for _, h, _ in bases) else ("match" if bases else "none")})
 
+    @app.post("/api/families")
+    def api_families():
+        """Households that could be a person's family, for someone born after
+        the last census we have (or with too little to search on).
+
+        Looks in the last census before the child's birth for dwellings where a
+        surname or farm name matches the child's surname, and ranks those in
+        the child's birthplace first. Every result is a lead, never a fact.
+        """
+        from ancestor_finder.importers.households import is_head, is_wife
+        from ancestor_finder import names as N
+        data = request.get_json(silent=True) or {}
+        surname = (data.get("surname") or "").strip()
+        if not surname:
+            return jsonify({"error": "Etternavn trengs for å lete etter familien.", "kind": "input"}), 400
+        try:
+            child_year = int(data.get("birth_year")) if data.get("birth_year") else None
+        except ValueError:
+            child_year = None
+        years = sorted(app.config["COVERAGE"]["years"])
+        year = max([y for y in years if child_year is None or y <= child_year] or years[:1])
+        place_k = N.place_key(data.get("birthplace") or "")
+        tokens = [t for t in N.clean(surname).split() if len(t) > 2]
+
+        # index: census year -> phonetic surname/farm word -> records (built once per year)
+        index = app.config.setdefault("WORD_INDEX", {})
+        if year not in index:
+            idx: dict[str, list[Record]] = {}
+            for r in source.records:
+                if r.year == year:
+                    for w in set(N.clean(f"{r.surname} {r.farm}").split()):
+                        k = N.phonetic(w)
+                        if len(k) > 2:
+                            idx.setdefault(k, []).append(r)
+            index[year] = idx
+        idx = index[year]
+        keys = {k for k in idx for t in tokens if N.word_similarity(t, k) >= 0.92}
+        hits = sorted({r.record_id: r for k in keys for r in idx[k]}.values(), key=lambda r: source._pos[r.record_id])
+
+        def split_families(house: list[Record]) -> list[dict]:
+            """One dwelling can hold several families: start a new one at each
+            husband-head, or at a wife-coded woman with no husband before her."""
+            fams, cur = [], None
+            for h in house:
+                starts_male = h.sex == "m" and is_head(h.role, h.sex)
+                starts_female = h.sex == "f" and is_wife(h.role) and (cur is None or cur["mother"] is not None)
+                if starts_male or starts_female:
+                    cur = {"father": h if starts_male else None, "mother": h if starts_female else None, "members": [h]}
+                    fams.append(cur)
+                elif cur is not None and cur["mother"] is None and h.sex == "f" and is_wife(h.role):
+                    cur["mother"] = h; cur["members"].append(h)
+                elif cur is not None:
+                    cur["members"].append(h)
+            return fams
+
+        def brief(h: Record | None) -> dict | None:
+            return _person_brief(h) | {"given_name": h.given_name, "surname": h.surname} if h else None
+
+        seen_houses, seen_couples, families = set(), set(), []
+        for r in hits:
+            house = source.household(r.record_id)
+            hkey = house[0].record_id if house else r.record_id
+            if hkey in seen_houses:
+                continue
+            seen_houses.add(hkey)
+            for fam in split_families(house or [r]):
+                f, m = fam["father"], fam["mother"]
+                couple = (f.record_id if f else None, m.record_id if m else None)
+                if couple in seen_couples:
+                    continue
+                seen_couples.add(couple)
+                lead = f or m
+                # the family must carry the name: a member's surname or the farm
+                carries = any(N.word_similarity(t, w) >= 0.92 for t in tokens
+                              for h in fam["members"] for w in N.clean(f"{h.surname} {h.farm}").split())
+                if not carries:
+                    continue
+                # parents must be of an age to have this child: mother 16–48, father 16–70
+                if child_year:
+                    if m and m.birth_year and not (child_year - 48 <= m.birth_year <= child_year - 16):
+                        continue
+                    if f and f.birth_year and not (child_year - 70 <= f.birth_year <= child_year - 16):
+                        continue
+                place = lead.municipality or lead.parish
+                same_place = bool(place_k) and N.word_similarity(N.place_key(place), place_k) >= 0.88
+                score = (2 if same_place else 0) + \
+                        (1 if any(N.word_similarity(t, w) >= 0.92 for t in tokens for w in N.clean(lead.farm).split()) else 0) + \
+                        (1 if f and m else 0)
+                families.append({
+                    "score": score, "year": year, "farm": lead.farm, "place": place, "county": lead.county,
+                    "source": f"{lead.source} · {lead.record_id}", "link": _source_link(lead),
+                    "father": brief(f), "mother": brief(m),
+                    "members": [_person_brief(h) for h in fam["members"]]})
+        families.sort(key=lambda f: -f["score"])
+        return jsonify({"year": year, "families": families[:8], "total": len(families)})
+
     @app.post("/report")
     def report():
         """Printable report of the records the user confirmed."""

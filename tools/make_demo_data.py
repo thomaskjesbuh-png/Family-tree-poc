@@ -65,6 +65,12 @@ H = [
         ("Kristian", "Olsen", "m", 1886, "Rakkestad", "s", "Ole Andreas Larsen", "Marte Kristine Larsen", ""),
         ("Ole", "Kristiansen", "m", 1909, "Rakkestad", "sønnesøn", "", "", ""),
     ]),
+    (1910, "Bakken", "Rakkestad", [
+        ("Lars", "Hansen", "m", 1878, "Rakkestad", "hf", "", "", "Karen Hansen"),
+        ("Karen", "Hansen", "f", 1882, "Eidsberg", "hm", "", "", "Lars Hansen"),
+        ("Berte", "Larsen", "f", 1905, "Rakkestad", "d", "Lars Hansen", "Karen Hansen", ""),
+        ("Hans", "Larsen", "m", 1908, "Rakkestad", "s", "Lars Hansen", "Karen Hansen", ""),
+    ]),
     (1910, "Haugen", "Rakkestad", [
         ("Ole", "Larsen", "m", 1852, "Rakkestad", "hf", "", "", "Inger Larsen"),
         ("Inger", "Larsen", "f", 1858, "Rakkestad", "hm", "", "", "Ole Larsen"),

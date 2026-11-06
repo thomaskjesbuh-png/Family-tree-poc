@@ -30,5 +30,9 @@ demo1910-028,DEMO: 1910 census (invented),census,1910,demo://demo1910-028,Marte 
 demo1910-029,DEMO: 1910 census (invented),census,1910,demo://demo1910-029,Anna,Olsen,Lie nordre,f,1891,Rakkestad,Rakkestad,Rakkestad,Østfold,Ole Andreas Larsen,Marte Kristine Larsen,,d,,False,True,False
 demo1910-030,DEMO: 1910 census (invented),census,1910,demo://demo1910-030,Kristian,Olsen,Lie nordre,m,1886,Rakkestad,Rakkestad,Rakkestad,Østfold,Ole Andreas Larsen,Marte Kristine Larsen,,s,,False,True,False
 demo1910-031,DEMO: 1910 census (invented),census,1910,demo://demo1910-031,Ole,Kristiansen,Lie nordre,m,1909,Rakkestad,Rakkestad,Rakkestad,Østfold,,,,sønnesøn,,False,False,False
-demo1910-032,DEMO: 1910 census (invented),census,1910,demo://demo1910-032,Ole,Larsen,Haugen,m,1852,Rakkestad,Rakkestad,Rakkestad,Østfold,,,Inger Larsen,hf,,False,True,False
-demo1910-033,DEMO: 1910 census (invented),census,1910,demo://demo1910-033,Inger,Larsen,Haugen,f,1858,Rakkestad,Rakkestad,Rakkestad,Østfold,,,Ole Larsen,hm,,False,True,False
+demo1910-032,DEMO: 1910 census (invented),census,1910,demo://demo1910-032,Lars,Hansen,Bakken,m,1878,Rakkestad,Rakkestad,Rakkestad,Østfold,,,Karen Hansen,hf,,False,True,False
+demo1910-033,DEMO: 1910 census (invented),census,1910,demo://demo1910-033,Karen,Hansen,Bakken,f,1882,Eidsberg,Rakkestad,Rakkestad,Østfold,,,Lars Hansen,hm,,False,True,False
+demo1910-034,DEMO: 1910 census (invented),census,1910,demo://demo1910-034,Berte,Larsen,Bakken,f,1905,Rakkestad,Rakkestad,Rakkestad,Østfold,Lars Hansen,Karen Hansen,,d,,False,True,False
+demo1910-035,DEMO: 1910 census (invented),census,1910,demo://demo1910-035,Hans,Larsen,Bakken,m,1908,Rakkestad,Rakkestad,Rakkestad,Østfold,Lars Hansen,Karen Hansen,,s,,False,True,False
+demo1910-036,DEMO: 1910 census (invented),census,1910,demo://demo1910-036,Ole,Larsen,Haugen,m,1852,Rakkestad,Rakkestad,Rakkestad,Østfold,,,Inger Larsen,hf,,False,True,False
+demo1910-037,DEMO: 1910 census (invented),census,1910,demo://demo1910-037,Inger,Larsen,Haugen,f,1858,Rakkestad,Rakkestad,Rakkestad,Østfold,,,Ole Larsen,hm,,False,True,False
