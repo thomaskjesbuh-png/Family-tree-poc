@@ -1,0 +1,34 @@
+record_id,source,record_type,year,url,given_name,surname,farm,sex,birth_year,birthplace,parish,municipality,county,father_name,mother_name,spouse_name,role,raw_text,extracted_by_model,relations_inferred,birth_year_from_age
+demo1865-001,DEMO: 1865 census (invented),census,1865,demo://demo1865-001,Lars,Olsen,Bakken,m,1822,Rakkestad,Rakkestad,Rakkestad,Østfold,,,Berte Hansdatter,Husfader,,False,True,True
+demo1865-002,DEMO: 1865 census (invented),census,1865,demo://demo1865-002,Berte,Hansdatter,Bakken,f,1826,Degernes,Rakkestad,Rakkestad,Østfold,,,Lars Olsen,hans Kone,,False,True,True
+demo1865-003,DEMO: 1865 census (invented),census,1865,demo://demo1865-003,Hans,Larsen,Bakken,m,1848,Rakkestad,Rakkestad,Rakkestad,Østfold,Lars Olsen,Berte Hansdatter,,deres Søn,,False,True,True
+demo1865-004,DEMO: 1865 census (invented),census,1865,demo://demo1865-004,Ole Andreas,Larsen,Bakken,m,1851,Rakkestad,Rakkestad,Rakkestad,Østfold,Lars Olsen,Berte Hansdatter,,deres Søn,,False,True,True
+demo1865-005,DEMO: 1865 census (invented),census,1865,demo://demo1865-005,Karen,Larsdatter,Bakken,f,1855,Rakkestad,Rakkestad,Rakkestad,Østfold,Lars Olsen,Berte Hansdatter,,deres Datter,,False,True,True
+demo1865-006,DEMO: 1865 census (invented),census,1865,demo://demo1865-006,Marte,Pedersdatter,Bakken,f,1846,Eidsberg,Rakkestad,Rakkestad,Østfold,,,,Tjenestepige,,False,False,True
+demo1865-007,DEMO: 1865 census (invented),census,1865,demo://demo1865-007,Lars,Olsen,Haugen (plads),m,1820,Rakkestad,Rakkestad,Rakkestad,Østfold,,,Anne Olsdatter,Husmand,,False,True,True
+demo1865-008,DEMO: 1865 census (invented),census,1865,demo://demo1865-008,Anne,Olsdatter,Haugen (plads),f,1824,Rakkestad,Rakkestad,Rakkestad,Østfold,,,Lars Olsen,hans Kone,,False,True,True
+demo1865-009,DEMO: 1865 census (invented),census,1865,demo://demo1865-009,Ole,Larsen,Haugen (plads),m,1852,Rakkestad,Rakkestad,Rakkestad,Østfold,Lars Olsen,Anne Olsdatter,,deres Søn,,False,True,True
+demo1865-010,DEMO: 1865 census (invented),census,1865,demo://demo1865-010,Mari,Larsdatter,Haugen (plads),f,1857,Rakkestad,Rakkestad,Rakkestad,Østfold,Lars Olsen,Anne Olsdatter,,deres Datter,,False,True,True
+demo1865-011,DEMO: 1865 census (invented),census,1865,demo://demo1865-011,Lars,Andersen,Vestre Ramstad,m,1818,Eidsberg,Eidsberg,Eidsberg,Østfold,,,Kari Olsdatter,Husfader,,False,True,True
+demo1865-012,DEMO: 1865 census (invented),census,1865,demo://demo1865-012,Kari,Olsdatter,Vestre Ramstad,f,1821,Eidsberg,Eidsberg,Eidsberg,Østfold,,,Lars Andersen,hans Kone,,False,True,True
+demo1865-013,DEMO: 1865 census (invented),census,1865,demo://demo1865-013,Ole Andreas,Larsen,Vestre Ramstad,m,1849,Eidsberg,Eidsberg,Eidsberg,Østfold,Lars Andersen,Kari Olsdatter,,deres Søn,,False,True,True
+demo1900-014,DEMO: 1900 census (invented),census,1900,demo://demo1900-014,Ole Andreas,Lars.,Nordre Lie,m,1851,Rakkestad herred,Rakkestad,Rakkestad,Østfold,,,Marte Kristine Lars.,hf,,False,True,False
+demo1900-015,DEMO: 1900 census (invented),census,1900,demo://demo1900-015,Marte Kristine,Lars.,Nordre Lie,f,1854,Degernes,Rakkestad,Rakkestad,Østfold,,,Ole Andreas Lars.,hm,,False,True,False
+demo1900-016,DEMO: 1900 census (invented),census,1900,demo://demo1900-016,Lars,Oles.,Nordre Lie,m,1879,Rakkestad herred,Rakkestad,Rakkestad,Østfold,Ole Andreas Lars.,Marte Kristine Lars.,,s,,False,True,False
+demo1900-017,DEMO: 1900 census (invented),census,1900,demo://demo1900-017,Berte,Olsd.,Nordre Lie,f,1882,Rakkestad herred,Rakkestad,Rakkestad,Østfold,Ole Andreas Lars.,Marte Kristine Lars.,,d,,False,True,False
+demo1900-018,DEMO: 1900 census (invented),census,1900,demo://demo1900-018,Kristian,Oles.,Nordre Lie,m,1886,Rakkestad herred,Rakkestad,Rakkestad,Østfold,Ole Andreas Lars.,Marte Kristine Lars.,,s,,False,True,False
+demo1900-019,DEMO: 1900 census (invented),census,1900,demo://demo1900-019,Anna,Olsd.,Nordre Lie,f,1891,Rakkestad herred,Rakkestad,Rakkestad,Østfold,Ole Andreas Lars.,Marte Kristine Lars.,,d,,False,True,False
+demo1900-020,DEMO: 1900 census (invented),census,1900,demo://demo1900-020,Berte,Hansdatter,Nordre Lie,f,1826,Degernes,Rakkestad,Rakkestad,Østfold,,,,føderaadskone,,False,False,False
+demo1900-021,DEMO: 1900 census (invented),census,1900,demo://demo1900-021,Ole,Lars.,Haugen,m,1852,Rakkestad herred,Rakkestad,Rakkestad,Østfold,,,Inger Olsd.,hf,,False,True,False
+demo1900-022,DEMO: 1900 census (invented),census,1900,demo://demo1900-022,Inger,Olsd.,Haugen,f,1858,Rakkestad herred,Rakkestad,Rakkestad,Østfold,,,Ole Lars.,hm,,False,True,False
+demo1900-023,DEMO: 1900 census (invented),census,1900,demo://demo1900-023,Anne,Olsd.,Haugen,f,1885,Rakkestad herred,Rakkestad,Rakkestad,Østfold,Ole Lars.,Inger Olsd.,,d,,False,True,False
+demo1900-024,DEMO: 1900 census (invented),census,1900,demo://demo1900-024,Ole Andreas,Lars.,Ramstad,m,1849,Eidsberg herred,Eidsberg,Eidsberg,Østfold,,,Marte Hansd.,hf,,False,True,False
+demo1900-025,DEMO: 1900 census (invented),census,1900,demo://demo1900-025,Marte,Hansd.,Ramstad,f,1853,Eidsberg herred,Eidsberg,Eidsberg,Østfold,,,Ole Andreas Lars.,hm,,False,True,False
+demo1900-026,DEMO: 1900 census (invented),census,1900,demo://demo1900-026,Hans,Oles.,Ramstad,m,1881,Eidsberg herred,Eidsberg,Eidsberg,Østfold,Ole Andreas Lars.,Marte Hansd.,,s,,False,True,False
+demo1910-027,DEMO: 1910 census (invented),census,1910,demo://demo1910-027,Ole Andreas,Larsen,Lie nordre,m,1851,Rakkestad,Rakkestad,Rakkestad,Østfold,,,Marte Kristine Larsen,hf,,False,True,False
+demo1910-028,DEMO: 1910 census (invented),census,1910,demo://demo1910-028,Marte Kristine,Larsen,Lie nordre,f,1854,Degernes,Rakkestad,Rakkestad,Østfold,,,Ole Andreas Larsen,hm,,False,True,False
+demo1910-029,DEMO: 1910 census (invented),census,1910,demo://demo1910-029,Anna,Olsen,Lie nordre,f,1891,Rakkestad,Rakkestad,Rakkestad,Østfold,Ole Andreas Larsen,Marte Kristine Larsen,,d,,False,True,False
+demo1910-030,DEMO: 1910 census (invented),census,1910,demo://demo1910-030,Kristian,Olsen,Lie nordre,m,1886,Rakkestad,Rakkestad,Rakkestad,Østfold,Ole Andreas Larsen,Marte Kristine Larsen,,s,,False,True,False
+demo1910-031,DEMO: 1910 census (invented),census,1910,demo://demo1910-031,Ole,Kristiansen,Lie nordre,m,1909,Rakkestad,Rakkestad,Rakkestad,Østfold,,,,sønnesøn,,False,False,False
+demo1910-032,DEMO: 1910 census (invented),census,1910,demo://demo1910-032,Ole,Larsen,Haugen,m,1852,Rakkestad,Rakkestad,Rakkestad,Østfold,,,Inger Larsen,hf,,False,True,False
+demo1910-033,DEMO: 1910 census (invented),census,1910,demo://demo1910-033,Inger,Larsen,Haugen,f,1858,Rakkestad,Rakkestad,Rakkestad,Østfold,,,Ole Larsen,hm,,False,True,False

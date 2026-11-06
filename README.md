@@ -17,7 +17,7 @@ the right record?** The answer goes in `reports/accuracy.md`.
 | Pipeline (search, name normalisation, scoring, ranking) | Works end to end on the fictional sample and on real Østfold census records |
 | Census importer | Any county. Imported so far: Østfold, Nord-Trøndelag and Hedmark, 1,198,969 person records from the 1801, 1865, 1900 and 1910 censuses. Booklet counts match the booklets' own totals to within 210 of 1,045,283 (0.02%) |
 | Model steps (Haiku extraction, Sonnet same-person check) | Built and tested with a fake client. **Not yet run against the real API** |
-| Unit tests | 73 passing |
+| Unit tests | 103 passing |
 | Accuracy report | Fictional: `reports/accuracy.md`. Real, from Thomas's family tree: `reports/accuracy_real.md` (private, git-ignored). 13 people with a confirmed record, searched across 1.2 million records: all 13 in the top 3, 8 first (the rest behind what is very likely the same person in an earlier census); all 4 "born after 1910" cases correctly return nothing; no wrong record rated high. Small sample, so a first signal only |
 | Live Digitalarkivet source | Intentionally not implemented: robots.txt bars AI agents |
 
@@ -162,6 +162,33 @@ Safeguards:
 * Records less than 100 years old are skipped, and queries for people born in
   the last 100 years are refused.
 
+## Web interface (prototype)
+
+```bash
+pip install -r requirements.txt
+python -m webapp                                   # invented example family, http://127.0.0.1:8000
+python -m webapp --records data/real/records.csv   # imported census data (~20 s to start)
+```
+
+The customer enters what they know about an ancestor and gets ranked census
+records. Each card shows the confidence, the reason behind every part of the
+score, the people listed at the same place, and a link to the page in the
+archive's booklet. The customer marks each record "This is them" or "Not them"
+(saved in their browser), then creates a printable report with source
+citations for the confirmed records. Searches for people born in the last
+100 years are refused.
+
+The default data is an invented family (`data/demo/demo_records.csv`, made by
+`tools/make_demo_data.py`), so the demo can be shown to anyone.
+
+**Not ready for paying customers.** The page shows a prototype notice until
+`AF_COMMERCIAL_CLEARED=1` is set. Set it only after Nasjonalarkivet has
+confirmed in writing that the census files may be used commercially and with
+AI (see `docs/access-findings.md`). Other gaps before launch: user accounts and
+saved projects on the server, payment, terms of service and a privacy policy,
+hosting, and faster search (about 5 s per search on 1.2 million records). Set
+`AF_USE_LLM=1` to add the Claude same-person check (needs API credentials).
+
 ## Layout
 
 ```
@@ -181,6 +208,8 @@ ancestor_finder/
 import_census.py        downloaded files -> data/real/records.csv
 tools/fetch_census.py   download Østfold census files (1 request/second)
 tools/validate_import.py  parsed counts vs booklet totals
+tools/make_demo_data.py   invented demo family -> data/demo/demo_records.csv
+webapp/                 web interface (Flask): search, review, report
 data/                   fictional sample records + format notes
 docs/access-findings.md
 tests/                  unit tests + known_people.yaml

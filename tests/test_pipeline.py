@@ -63,3 +63,16 @@ def test_no_census_before_birth():
     q = PersonQuery(given_name="Ole", surname="Hansen", birth_year=1898, birthplace="Rakkestad")
     res = find(q, LocalFileSource())
     assert all(c.record.year >= 1896 for c in res.candidates)
+
+
+def test_household_lookup(tmp_path):
+    rows = ("record_id,source,record_type,year,url,given_name,surname,farm,municipality\n"
+            "A,s,census,1900,u#1,Ole,Olsen,Bakke,Tune\n"
+            "B,s,census,1900,u#1,Kari,Olsen,Bakke,Tune\n"
+            "C,s,census,1900,u#1,Per,Hansen,Haugen,Tune\n")
+    f = tmp_path / "r.csv"
+    f.write_text(rows, encoding="utf-8")
+    src = LocalFileSource(f)
+    assert [r.record_id for r in src.household("A")] == ["A", "B"]
+    assert [r.record_id for r in src.household("C")] == ["C"]
+    assert src.get("B").given_name == "Kari" and src.household("missing") == []

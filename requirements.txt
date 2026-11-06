@@ -2,3 +2,4 @@ PyYAML>=6.0
 pydantic>=2.6
 anthropic>=2.5
 pytest>=8.0
+flask>=3.1

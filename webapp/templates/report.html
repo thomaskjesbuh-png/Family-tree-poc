@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Census report</title>
+<style>
+  body { margin: 0; background: #fff; color: #1F2A2E; font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .page { max-width: 820px; margin: 0 auto; padding: 32px 16px 48px; }
+  h1, h2, h3 { font-family: "Iowan Old Style", Palatino, Georgia, serif; line-height: 1.2; }
+  h1 { font-size: 30px; margin: 0 0 4px; }
+  .sub { color: #5E6B70; margin: 0 0 20px; }
+  .notice { background: #FBF3DC; border: 1px solid #E6D39A; border-radius: 8px; padding: 10px 14px; font-size: 14px; margin-bottom: 20px; }
+  dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 0 0 24px; }
+  dt { color: #5E6B70; } dd { margin: 0; }
+  .rec { border: 1px solid #DAD4C7; border-radius: 10px; padding: 14px 16px; margin-bottom: 16px; break-inside: avoid; }
+  .rec h3 { margin: 0 0 2px; font-size: 19px; }
+  .rec .meta { color: #5E6B70; margin: 0 0 10px; font-size: 14px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; margin-top: 6px; }
+  th { text-align: left; color: #5E6B70; border-bottom: 1px solid #DAD4C7; padding: 3px 4px; }
+  td { border-bottom: 1px solid #EEE9DF; padding: 3px 4px; }
+  tr.me td { font-weight: 700; background: #E1ECEF; }
+  .cite { font-size: 13px; margin-top: 10px; }
+  ul { margin: 6px 0 0; padding-left: 18px; font-size: 14px; }
+  .method { font-size: 13.5px; color: #3D4A4F; border-top: 1px solid #DAD4C7; margin-top: 28px; padding-top: 12px; }
+  .print { float: right; font: inherit; padding: 8px 12px; border-radius: 8px; border: 1px solid #DAD4C7; background: #fff; cursor: pointer; }
+  @media print { .print { display: none; } .page { padding-top: 0; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <button class="print" onclick="window.print()">Print or save as PDF</button>
+  <h1>Census records for {{ (person.given_name ~ " " ~ (person.surname or "")).strip() }}</h1>
+  <p class="sub">Report generated {{ generated }} · {{ confirmed|length }} record{{ "" if confirmed|length == 1 else "s" }} confirmed{% if rejected %} · {{ rejected }} ruled out{% endif %}</p>
+
+  {% if not status.commercial_cleared or status.demo %}
+  <div class="notice">
+    {% if status.demo %}<b>Example report.</b> Everyone in it is invented. {% endif %}
+    {% if not status.commercial_cleared %}Prototype output; the licence for commercial use of the census data is not confirmed.{% endif %}
+  </div>
+  {% endif %}
+
+  <h2>What was searched for</h2>
+  <dl>
+    <dt>Name</dt><dd>{{ person.given_name }} {{ person.surname or "" }}{% if person.name_variants %} (also: {{ person.name_variants|join(", ") }}){% endif %}</dd>
+    <dt>Born</dt><dd>about {{ person.birth_year }}{% if person.birth_year_tolerance %} (± {{ person.birth_year_tolerance }}){% endif %}{% if person.birthplace %}, {{ person.birthplace }}{% endif %}{% if person.county %}, {{ person.county }}{% endif %}</dd>
+    {% if person.father_name %}<dt>Father</dt><dd>{{ person.father_name }}</dd>{% endif %}
+    {% if person.mother_name %}<dt>Mother</dt><dd>{{ person.mother_name }}</dd>{% endif %}
+    {% if person.spouse_name %}<dt>Spouse</dt><dd>{{ person.spouse_name }}</dd>{% endif %}
+  </dl>
+
+  <h2>Records confirmed</h2>
+  {% if not confirmed %}<p>No records were confirmed.</p>{% endif %}
+  {% for c in confirmed %}{% set r = c.record %}
+  <section class="rec">
+    <h3>{{ r.year }} census: {{ r.full_name }}</h3>
+    <p class="meta">{{ [r.farm, r.municipality or r.parish, r.county]|select|join(", ") }} · born {{ r.birth_year or "?" }}{% if r.birthplace %} in {{ r.birthplace }}{% endif %}{% if r.role %} · listed as «{{ r.role }}»{% endif %}{% if c.confidence %} · tool rating: {{ c.confidence }}{% endif %}</p>
+    {% if c.household|length > 1 %}
+    <table><thead><tr><th>Listed at the same place</th><th>Born</th><th>Birthplace</th><th>Role</th></tr></thead><tbody>
+      {% for h in c.household %}<tr class="{{ 'me' if h.record_id == r.record_id }}"><td>{{ h.full_name }}</td><td>{{ h.birth_year or "?" }}</td><td>{{ h.birthplace }}</td><td>{{ h.role }}</td></tr>{% endfor %}
+    </tbody></table>
+    {% endif %}
+    {% if c.reasons %}<ul>{% for x in c.reasons %}<li>{{ x }}</li>{% endfor %}</ul>{% endif %}
+    <p class="cite"><b>Source:</b> {{ r.source }}{% if c.link %}, <a href="{{ c.link }}">{{ c.link }}</a>{% endif %}. Record id {{ r.record_id }}.</p>
+  </section>
+  {% endfor %}
+
+  <div class="method">
+    <b>How these records were found.</b> Every census entry was scored on first name, surname (including
+    patronymics and farm names), birth year, birthplace and family. Each record above was confirmed by the
+    person who ran the search. Ages in the 1801 and 1865 censuses give birth years that can be a year off.
+    Parents and spouses come from the household lists, not from a stated link. Check every record in the
+    original source before you rely on it.
+    Data: census transcriptions published by Nasjonalarkivet (Arkivverket).
+  </div>
+</div>
+</body>
+</html>

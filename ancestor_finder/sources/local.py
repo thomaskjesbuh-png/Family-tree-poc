@@ -54,11 +54,43 @@ class LocalFileSource(Source):
         # index by canonical given name so similarity is computed per distinct name
         self._by_given: dict[str, list[Record]] = defaultdict(list)
         self._raw_only: list[Record] = []
+        self._pos = {r.record_id: i for i, r in enumerate(self.records)}
         for r in self.records:
             if r.raw_text and not r.given_name:
                 self._raw_only.append(r)
             else:
                 self._by_given[names.canonical_given(r.given_name)].append(r)
+
+    def get(self, record_id: str) -> Record | None:
+        i = self._pos.get(record_id)
+        return self.records[i] if i is not None else None
+
+    def household(self, record_id: str, limit: int = 40) -> list[Record]:
+        """Everyone listed in the same dwelling as this record (same census,
+        place and farm, next to each other in the source). Records with no
+        farm name only get themselves back."""
+        i = self._pos.get(record_id)
+        if i is None:
+            return []
+        r0 = self.records[i]
+        if not r0.farm:
+            return [r0]
+
+        def doc(r: Record) -> str:
+            # booklet records link to "<booklet>.pdf#page=N"; compare the booklet only
+            return r.url.split("#")[0] if "#" in r.url else ""
+
+        def same(r: Record) -> bool:
+            return (r.year == r0.year and r.farm == r0.farm and r.municipality == r0.municipality
+                    and doc(r) == doc(r0))
+
+        lo = i
+        while lo > 0 and same(self.records[lo - 1]) and i - lo < limit:
+            lo -= 1
+        hi = i
+        while hi + 1 < len(self.records) and same(self.records[hi + 1]) and hi - i < limit:
+            hi += 1
+        return self.records[lo:hi + 1]
 
     def search(self, query: PersonQuery) -> list[Record]:
         limit = cutoff_year()
