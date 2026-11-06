@@ -156,9 +156,16 @@ def write_report(results: list[dict], path: Path, *, source_desc: str, llm: bool
         if r["candidates"]:
             L += ["| Rank | Record | Confidence | Score | Correct | Model verdict |",
                   "| --- | --- | --- | --- | --- | --- |"]
-            for i, (rid, conf, score, ok, verdict) in enumerate(r["candidates"], 1):
+            shown = r["candidates"][:10]
+            for i, (rid, conf, score, ok, verdict) in enumerate(shown, 1):
                 okw = "yes" if ok is True else ("probable (unconfirmed)" if ok == "probable" else "no")
                 L.append(f"| {i} | {rid} | {conf} | {score} | {okw} | {verdict or '-'} |")
+            hidden = r["candidates"][10:]
+            if hidden:
+                extra = [f"rank {i} ({rid})" for i, (rid, *_rest) in enumerate(r["candidates"], 1)
+                         if i > 10 and _rest[2] is not False]
+                L.append(f"\n{len(hidden)} more candidates not shown" +
+                         (f"; correct or probable among them: {', '.join(extra)}" if extra else "") + ".")
             L.append("")
         else:
             L += ["No candidates reported.", ""]

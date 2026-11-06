@@ -30,13 +30,13 @@ Share of reported candidates at each level that are the right person.
 
 ## Per person
 
-| Case | Result | Correct rank | False matches | Model cost |
+| Case | Result | Correct rank | Wrong records rated high / medium | Model cost |
 | --- | --- | --- | --- | --- |
-| F1-kristine-spelling | top 1 | 1 | none | $0.0000 |
-| F2-ole-hansen-namesakes | top 1 | 1 | S013 (medium) | $0.0000 |
-| F3-farm-name-surname | top 1 | 1 | none | $0.0000 |
-| F4-marie-spouse-and-raw-text | top 1 | 1 | none | $0.0000 |
-| F5-no-record | correct: no match | - | none | $0.0000 |
+| F1-kristine-spelling | top 1 | 1 | 0 medium | $0.0000 |
+| F2-ole-hansen-namesakes | top 1 | 1 | 1 medium | $0.0000 |
+| F3-farm-name-surname | top 1 | 1 | 0 medium | $0.0000 |
+| F4-marie-spouse-and-raw-text | top 1 | 1 | 0 medium | $0.0000 |
+| F5-no-record | correct: no match | - | 0 medium | $0.0000 |
 
 ## Details
 
