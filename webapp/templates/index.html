@@ -3,53 +3,49 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Ancestor Finder</title>
+<title>{{ status.app_name }}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400&family=Inter:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-<header class="top">
-  <div class="brand">
-    <span class="mark" aria-hidden="true"></span>
-    <div>
-      <h1>Ancestor Finder</h1>
-      <p class="tag">Find your ancestors in the Norwegian censuses, with the evidence for every match.</p>
-    </div>
+<header class="masthead">
+  <div class="masthead-inner">
+    <a class="wordmark" href="/">{{ status.app_name }}</a>
+    <p class="coverage">{{ "{:,}".format(status.coverage.records) }} census entries ·
+      {{ status.coverage.years | join(", ") }} · {{ status.coverage.counties | join(", ") }}</p>
   </div>
-  <p class="coverage" id="coverage">
-    {{ "{:,}".format(status.coverage.records) }} records ·
-    censuses {{ status.coverage.years | join(", ") }} ·
-    {{ status.coverage.counties | join(", ") }}
-  </p>
 </header>
 
 {% if not status.commercial_cleared %}
-<div class="notice" role="note">
-  <strong>Prototype.</strong>
-  {% if status.demo %}You are looking at an <b>invented example family</b>; none of these people existed.{% endif %}
-  Census data comes from files Nasjonalarkivet publishes. Their licence for commercial use is not confirmed yet,
-  so this is not for paying customers.
-</div>
+<p class="notice" role="note">
+  <b>Prototype.</b>
+  {% if status.demo %}The family you'll meet here is invented; none of these people lived.{% endif %}
+  The census transcriptions come from Nasjonalarkivet, and their use in a paid service isn't cleared yet.
+</p>
 {% endif %}
 
 <main class="layout">
-  <section class="panel search" aria-labelledby="search-h">
-    <h2 id="search-h">Who are you looking for?</h2>
-    <p class="hint">What you know is enough. Family names help most: parents or a spouse tell namesakes apart.</p>
+  <section class="search-col" aria-labelledby="search-h">
+    <h1 id="search-h">Whose story shall we follow?</h1>
+    <p class="lede">Start with what you know. A parent or a spouse is the best clue for telling namesakes apart.</p>
     <form id="search" novalidate>
       <fieldset>
         <legend>The person</legend>
         <div class="row">
-          <label>First name(s)<input name="given_name" required autocomplete="off" placeholder="Ole Andreas"></label>
+          <label>First names<input name="given_name" required autocomplete="off" placeholder="Ole Andreas"></label>
           <label>Surname<input name="surname" autocomplete="off" placeholder="Larsen"></label>
         </div>
-        <label>Other spellings <span class="opt">optional, comma separated</span>
+        <label>Other spellings <span class="opt">optional, separate with commas</span>
           <input name="name_variants" autocomplete="off" placeholder="Ole Larsen, Ola Larssen"></label>
-        <div class="row">
+        <div class="row three">
           <label>Born about<input name="birth_year" inputmode="numeric" required placeholder="1851"></label>
-          <label>± years<select name="birth_year_tolerance">
-            <option>0</option><option>1</option><option selected>2</option><option>3</option><option>5</option>
+          <label>Give or take<select name="birth_year_tolerance">
+            <option value="0">exact</option><option value="1">1 year</option><option value="2" selected>2 years</option>
+            <option value="3">3 years</option><option value="5">5 years</option>
           </select></label>
-          <label>Sex<select name="sex"><option value="">Unknown</option><option value="m">Male</option><option value="f">Female</option></select></label>
+          <label>Sex<select name="sex"><option value="">Not sure</option><option value="m">Male</option><option value="f">Female</option></select></label>
         </div>
         <div class="row">
           <label>Birthplace <span class="opt">parish</span><input name="birthplace" autocomplete="off" placeholder="Rakkestad"></label>
@@ -58,39 +54,41 @@
         <datalist id="counties">{% for c in status.coverage.counties %}<option value="{{ c }}">{% endfor %}</datalist>
       </fieldset>
       <fieldset>
-        <legend>Family <span class="opt">optional, but the strongest evidence</span></legend>
+        <legend>Family <span class="opt">the strongest clues</span></legend>
         <label>Father<input name="father_name" autocomplete="off" placeholder="Lars Olsen"></label>
-        <label>Mother <span class="opt">maiden name is fine</span><input name="mother_name" autocomplete="off" placeholder="Berte Hansdatter"></label>
+        <label>Mother <span class="opt">her maiden name is fine</span><input name="mother_name" autocomplete="off" placeholder="Berte Hansdatter"></label>
         <label>Spouse<input name="spouse_name" autocomplete="off" placeholder="Marte Kristine"></label>
       </fieldset>
       <div class="actions">
-        <button type="submit" class="primary" id="go">Search the censuses</button>
-        {% if status.demo %}<button type="button" class="ghost" id="example">Fill in the example</button>{% endif %}
+        <button type="submit" class="primary" id="go">Follow the trail</button>
+        {% if status.demo %}<button type="button" class="quiet" id="example">Try the example family</button>{% endif %}
       </div>
-      <p class="fine">Only people born in {{ status.cutoff_year }} or earlier, and records over 100 years old, are searched.</p>
+      <p class="fine">We only search people born in {{ status.cutoff_year }} or earlier, so the living keep their privacy.</p>
     </form>
   </section>
 
-  <section class="results" aria-live="polite" aria-labelledby="res-h">
+  <section class="results-col" aria-live="polite" aria-labelledby="res-h">
     <div class="tray" id="tray" hidden>
-      <div><b id="tray-count">0</b> confirmed · <span id="tray-rejected">0</span> ruled out</div>
+      <p><span class="num" id="tray-count">0</span> kept for the chapter · <span class="num" id="tray-rejected">0</span> set aside</p>
       <form id="report-form" method="post" action="{{ url_for('report') }}" target="_blank">
         <input type="hidden" name="payload" id="payload">
-        <button type="submit" class="primary small" id="make-report">Create report</button>
+        <button type="submit" class="primary small" id="make-report">Write the chapter</button>
       </form>
     </div>
-    <div id="intro" class="empty">
-      <h2 id="res-h">How it works</h2>
-      <ol class="how">
-        <li><b>Search.</b> Every census entry that could be your person is scored on name, birth year, place and family.</li>
-        <li><b>Review.</b> Each match shows why it scored as it did, who else lived in the household, and a link to the page in the archive.</li>
-        <li><b>Decide.</b> Mark each record <i>This is them</i> or <i>Not them</i>. Nothing is claimed for you.</li>
-        <li><b>Keep.</b> Turn the records you confirmed into a report with full source citations.</li>
+
+    <div id="intro" class="intro">
+      {% include "_drawing_farm.html" %}
+      <h2 id="res-h">Every ancestor is a chapter</h2>
+      <p>The censuses list who lived on every farm and in every house, decade by decade. We look for your person among them and show you each trace we find.</p>
+      <ol class="steps">
+        <li><b>Search.</b> Every entry that could be them is weighed on name, birth year, place and family.</li>
+        <li><b>Examine the clues.</b> See why each trace scored as it did, who lived alongside them, and the page in the archive.</li>
+        <li><b>Decide.</b> Keep the records that are them and set the rest aside. Nothing is decided for you.</li>
+        <li><b>Write the chapter.</b> What you keep becomes a printable chapter with every source.</li>
       </ol>
-      <p class="legend"><span class="badge high">High</span> strong match, no rival
-        <span class="badge medium">Medium</span> likely, but a namesake or missing facts leave doubt
-        <span class="badge low">Low</span> weak; shown so you can rule it out</p>
+      <p class="legend"><span class="chip strong">Strong match</span><span class="chip possible">Possible match</span><span class="chip faint">Faint trace</span></p>
     </div>
+
     <div id="status" class="status" hidden></div>
     <ol id="list" class="cards"></ol>
   </section>
@@ -98,22 +96,26 @@
 
 <template id="card-t">
   <li class="card">
-    <div class="card-head">
+    <div class="card-main">
       <div class="who">
-        <span class="rank"></span>
+        <p class="kicker"><span class="year num"></span><span class="where"></span></p>
         <h3 class="name"></h3>
         <p class="meta"></p>
+        <p class="clue"></p>
       </div>
-      <div class="conf"><span class="badge"></span><span class="score"></span></div>
+      <span class="chip"></span>
     </div>
-    <div class="body">
-      <div class="why"><h4>Why this score</h4><ul class="reasons"></ul><ul class="notes"></ul></div>
-      <div class="house"><h4>Listed at the same place</h4><table><thead><tr><th>Name</th><th>Born</th><th>Role</th></tr></thead><tbody></tbody></table></div>
-    </div>
+    <details class="evidence">
+      <summary>Examine the clues</summary>
+      <div class="evidence-body">
+        <div class="why"><h4>Why this trace</h4><ul class="reasons"></ul><ul class="notes"></ul></div>
+        <div class="house"><h4>Living at the same place</h4><table><thead><tr><th>Name</th><th>Born</th><th>Listed as</th></tr></thead><tbody></tbody></table></div>
+      </div>
+    </details>
     <div class="card-foot">
       <span class="cite"></span>
       <div class="btns">
-        <a class="ghost small open" target="_blank" rel="noopener">Open source page</a>
+        <a class="quiet small open" target="_blank" rel="noopener">See the archive page</a>
         <button type="button" class="small no">Not them</button>
         <button type="button" class="small yes">This is them</button>
       </div>

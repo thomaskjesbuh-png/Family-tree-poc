@@ -15,7 +15,8 @@ def client():
 
 def test_index_shows_prototype_notice(client):
     html = client.get("/").get_data(as_text=True)
-    assert "Prototype." in html and "invented example family" in html
+    assert "Prototype." in html and "invented; none of these people lived" in html
+    assert "Whose story shall we follow?" in html
 
 
 def test_search_finds_the_demo_ancestor_in_three_censuses(client):
@@ -45,4 +46,11 @@ def test_report_lists_only_confirmed(client):
     payload = {"query": data["query"], "decisions": {a: {"status": "confirmed", "reasons": ["First name: same"]},
                                                      b: {"status": "rejected"}}}
     html = client.post("/report", data={"payload": json.dumps(payload)}).get_data(as_text=True)
-    assert a in html and b not in html and "1 ruled out" in html and "Example report" in html
+    assert a in html and b not in html and "1 possible record was set aside" in html
+    assert "An example chapter" in html and "A chapter for The Book of Me" in html
+
+
+def test_app_name_is_configurable(monkeypatch):
+    monkeypatch.setenv("AF_APP_NAME", "Slektspor")
+    html = create_app().test_client().get("/").get_data(as_text=True)
+    assert "<title>Slektspor</title>" in html

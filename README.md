@@ -17,7 +17,7 @@ the right record?** The answer goes in `reports/accuracy.md`.
 | Pipeline (search, name normalisation, scoring, ranking) | Works end to end on the fictional sample and on real Østfold census records |
 | Census importer | Any county. Imported so far: Østfold, Nord-Trøndelag and Hedmark, 1,198,969 person records from the 1801, 1865, 1900 and 1910 censuses. Booklet counts match the booklets' own totals to within 210 of 1,045,283 (0.02%) |
 | Model steps (Haiku extraction, Sonnet same-person check) | Built and tested with a fake client. **Not yet run against the real API** |
-| Unit tests | 103 passing |
+| Unit tests | 104 passing |
 | Accuracy report | Fictional: `reports/accuracy.md`. Real, from Thomas's family tree: `reports/accuracy_real.md` (private, git-ignored). 13 people with a confirmed record, searched across 1.2 million records: all 13 in the top 3, 8 first (the rest behind what is very likely the same person in an earlier census); all 4 "born after 1910" cases correctly return nothing; no wrong record rated high. Small sample, so a first signal only |
 | Live Digitalarkivet source | Intentionally not implemented: robots.txt bars AI agents |
 
@@ -177,6 +177,17 @@ archive's booklet. The customer marks each record "This is them" or "Not them"
 (saved in their browser), then creates a printable report with source
 citations for the confirmed records. Searches for people born in the last
 100 years are refused.
+
+The look and wording follow the draft design manual ("Family Tree App –
+Design Manual"): Birch, Slate, Moss and Amber/copper colours (exact values
+proposed in `webapp/static/style.css`), Fraunces for names and headings with
+Inter for data (from Google Fonts, with system fallbacks), quiet cards that
+show the evidence on request, and a report laid out as a printable chapter
+for "The Book of Me". The voice is warm and lightly detective-like ("follow
+the trail", "an open mystery, not a dead end"), while confidence and sources
+stay plainly worded. The line drawing is a placeholder for the planned
+robot-drawn art (`webapp/templates/_drawing_farm.html`). The name is still
+open in the manual, so set it with `AF_APP_NAME` (default "Ancestor Finder").
 
 The default data is an invented family (`data/demo/demo_records.csv`, made by
 `tools/make_demo_data.py`), so the demo can be shown to anyone.

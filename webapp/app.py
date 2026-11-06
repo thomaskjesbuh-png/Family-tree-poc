@@ -73,6 +73,9 @@ def create_app(records_path: Path | str | None = None) -> Flask:
     app.config.update(
         SOURCE=source, IS_DEMO=is_demo, RECORDS_PATH=str(path), LOAD_SECONDS=round(time.time() - t0, 1),
         COMMERCIAL_CLEARED=os.environ.get("AF_COMMERCIAL_CLEARED") == "1",
+        # The design manual leaves the name open (candidates: Sporene, Slektspor,
+        # Ætt, Kilde, Gården; trademark check pending), so it is configurable.
+        APP_NAME=os.environ.get("AF_APP_NAME", "Ancestor Finder"),
         COVERAGE={"years": years, "counties": counties, "records": len(source.records)},
     )
     helper = None
@@ -84,6 +87,7 @@ def create_app(records_path: Path | str | None = None) -> Flask:
 
     def status() -> dict:
         return {"demo": app.config["IS_DEMO"], "coverage": app.config["COVERAGE"],
+                "app_name": app.config["APP_NAME"],
                 "commercial_cleared": app.config["COMMERCIAL_CLEARED"],
                 "model_checks": helper is not None, "cutoff_year": cutoff_year()}
 
