@@ -45,9 +45,10 @@ python tools/validate_import.py     # compare parsed counts with each booklet's 
 ```
 
 The import stops without writing anything if it finds no downloaded files, and the
-web app refuses to start on an empty records file. On a Mac, the booklets need
-`brew install poppler`; if the download fails with CERTIFICATE_VERIFY_FAILED, run
-*Install Certificates.command* in the Python folder under Applications.
+web app refuses to start on an empty records file. The booklets are read with
+poppler's `pdftotext` when installed, otherwise with `pypdf` (slower, about 98%
+identical records). `pip install -r requirements.txt` brings pypdf and certifi;
+certifi fixes CERTIFICATE_VERIFY_FAILED with Python from python.org on a Mac.
 
 ```bash
 python find.py person.yaml --records data/real/records.csv
