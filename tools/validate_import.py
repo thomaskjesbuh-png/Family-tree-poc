@@ -32,8 +32,8 @@ def main() -> int:
     missing = expected = 0
     for year in (1865, 1900, 1910):
         tot_p = tot_s = 0
-        for pdf in sorted((raw / str(year) / "01Ostfold").glob("*_hefte.pdf")):
-            recs = parse_booklet(pdf, year)
+        for pdf in sorted((raw / str(year)).glob("*/*_hefte.pdf")):
+            recs = parse_booklet(pdf, year, pdf.parent.name)
             sx = Counter(r.sex for r in recs)
             want = stated(pdf)
             got = (len(recs), sx["f"], sx["m"])

@@ -15,10 +15,10 @@ the right record?** The answer goes in `reports/accuracy.md`.
 | --- | --- |
 | Access investigation (`docs/access-findings.md`) | Done (2026-11-05). Digitalarkivet's robots.txt bars AI agents; no bulk API; census files for 1801, 1865, 1900 and 1910 downloadable from xml.arkivverket.no, licence unstated |
 | Pipeline (search, name normalisation, scoring, ranking) | Works end to end on the fictional sample and on real Østfold census records |
-| Census importer | 444,560 Østfold person records from the 1801, 1865, 1900 and 1910 censuses. Counts match the booklets' own totals to within 23 of 394,442 (0.006%) |
+| Census importer | Any county. Imported so far: Østfold, Nord-Trøndelag and Hedmark, 1,198,969 person records from the 1801, 1865, 1900 and 1910 censuses. Booklet counts match the booklets' own totals to within 210 of 1,045,283 (0.02%) |
 | Model steps (Haiku extraction, Sonnet same-person check) | Built and tested with a fake client. **Not yet run against the real API** |
 | Unit tests | 73 passing |
-| Accuracy report | Fictional: `reports/accuracy.md`. Real, from Thomas's family tree: `reports/accuracy_real.md` (private, git-ignored). 6 people with a confirmed 1910 record are all in the top 3 (3 first, the other 3 behind their probable 1900 record); both "born after 1910" cases correctly return nothing; no wrong record rated high |
+| Accuracy report | Fictional: `reports/accuracy.md`. Real, from Thomas's family tree: `reports/accuracy_real.md` (private, git-ignored). 13 people with a confirmed record, searched across 1.2 million records: all 13 in the top 3, 8 first (the rest behind what is very likely the same person in an earlier census); all 4 "born after 1910" cases correctly return nothing; no wrong record rated high. Small sample, so a first signal only |
 | Live Digitalarkivet source | Intentionally not implemented: robots.txt bars AI agents |
 
 The sample records in `data/sample_records.csv` are **invented** and marked
@@ -36,14 +36,18 @@ pip install -r requirements.txt
 Python 3.11 or newer. The census importer also needs `pdftotext` from
 poppler-utils (`apt-get install poppler-utils` or `brew install poppler`).
 
-## Real census data (Østfold)
+## Real census data
 
 ```bash
-python tools/fetch_census.py        # ~120 MB from xml.arkivverket.no into data/raw/
-python import_census.py             # -> data/real/ostfold_records.csv (about 2.5 minutes)
+python tools/fetch_census.py --counties 01Ostfold 17Nord-Trondelag 04Hedmark   # ~320 MB into data/raw/
+python import_census.py             # every downloaded county -> data/real/records.csv (~5 min for three)
 python tools/validate_import.py     # compare parsed counts with each booklet's totals
-python find.py person.yaml --records data/real/ostfold_records.csv
+python find.py person.yaml --records data/real/records.csv
 ```
+
+County folder names are the ones on xml.arkivverket.no (`01Ostfold` …
+`20Finnmark`). The table below shows Østfold; Nord-Trøndelag and Hedmark
+follow the same pattern.
 
 | Census | Source file | Persons | Birth year | Relations |
 | --- | --- | --- | --- | --- |
@@ -174,7 +178,7 @@ ancestor_finder/
   importers/booklets.py      1865/1900/1910 census booklet PDFs -> records
   importers/ft1801.py        1801 research CSV -> records
   importers/households.py    parents/spouse from household position
-import_census.py        downloaded files -> data/real/ostfold_records.csv
+import_census.py        downloaded files -> data/real/records.csv
 tools/fetch_census.py   download Østfold census files (1 request/second)
 tools/validate_import.py  parsed counts vs booklet totals
 data/                   fictional sample records + format notes
@@ -197,7 +201,7 @@ tests/                  unit tests + known_people.yaml
    test set has no fixed size, and people found by hand in your browser are
    the best test cases.
 4. **Run the real test set** on the imported records:
-   `python evaluate.py --kind real --records data/real/ostfold_records.csv`.
+   `python evaluate.py --cases tests/family_people.yaml --kind real --records data/real/records.csv`.
    Since there are no church records, use census entries as the expected
    answers (`expected.record_ids` take the ids printed by `find.py`).
 5. **Run with `--llm`** on the real set. Compare accuracy and cost with and

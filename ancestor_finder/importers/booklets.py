@@ -23,7 +23,14 @@ from .. import names
 from .households import Member, assign_relations
 
 BOOKLET_BASE = "https://xml.arkivverket.no/folketellinger/hefter"
-COUNTY_NAME = {"01Ostfold": "Østfold"}
+COUNTY_NAME = {
+    "01Ostfold": "Østfold", "02Akershus": "Akershus", "03Oslo": "Oslo", "04Hedmark": "Hedmark",
+    "05Oppland": "Oppland", "06Buskerud": "Buskerud", "07Vestfold": "Vestfold", "08Telemark": "Telemark",
+    "09Aust-Agder": "Aust-Agder", "10Vest-Agder": "Vest-Agder", "11Rogaland": "Rogaland",
+    "12Hordaland": "Hordaland", "13Bergen": "Bergen", "14Sogn_og_fjordane": "Sogn og Fjordane",
+    "15More_og_Romsdal": "Møre og Romsdal", "16Sor-Trondelag": "Sør-Trøndelag", "16Trondheim": "Trondheim",
+    "17Nord-Trondelag": "Nord-Trøndelag", "18Nordland": "Nordland", "19Troms": "Troms", "20Finnmark": "Finnmark",
+}
 
 _PERSON = re.compile(r"^(\d{3}) (.+)$")
 _SEX = re.compile(r"\s(m|k)\*?(?=\s)")

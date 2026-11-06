@@ -60,6 +60,7 @@ def evaluate_case(case: dict, source, helper) -> dict:
     return {
         "id": case["id"], "note": case.get("note", ""), "status": status, "rank": rank,
         "verified": verified,
+        "probable": sorted(probable),
         "top": [(c.record.record_id, c.record.full_name, c.record.birth_year,
                  c.record.farm, c.record.municipality or c.record.parish, c.record.year,
                  c.confidence, c.record.url) for c in res.candidates[:3]],
@@ -180,7 +181,8 @@ def write_report(results: list[dict], path: Path, *, source_desc: str, llm: bool
                 continue
             L += ["| Record | Name | Born | Place | Census | Confidence |", "| --- | --- | --- | --- | --- | --- |"]
             for rid, name, by, farm, muni, year, conf, url in r["top"]:
-                L.append(f"| [{rid}]({url}) | {name} | {by or '?'} | {', '.join(x for x in (farm, muni) if x)} | {year} | {conf} |")
+                mark = " (probable)" if rid in r.get("probable", []) else ""
+                L.append(f"| [{rid}]({url}){mark} | {name} | {by or '?'} | {', '.join(x for x in (farm, muni) if x)} | {year} | {conf} |")
             L.append("")
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(L) + "\n", encoding="utf-8")

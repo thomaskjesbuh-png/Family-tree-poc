@@ -2,7 +2,7 @@
 """Download census files for one county from xml.arkivverket.no.
 
     python tools/fetch_census.py                     # Østfold: 1801 CSV + 1865/1900/1910 booklets
-    python tools/fetch_census.py --years 1865 1900
+    python tools/fetch_census.py --counties 17Nord-Trondelag 04Hedmark --years 1865 1900 1910
 
 Files go to data/raw/ (git-ignored: the licence is not stated, so the data is
 not committed). Existing files are skipped. At most one request per second,
@@ -24,7 +24,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from ancestor_finder.sources.base import USER_AGENT, RateLimiter  # noqa: E402
 
 BASE = "https://xml.arkivverket.no/folketellinger"
-FT1801 = {"01Ostfold": "Ft1801_forsk_01Ostfold_v1.txt"}
+def ft1801_name(county_dir: str) -> str:
+    """'17Nord-Trondelag' -> 'Ft1801_forsk_17NordTrondelag_v1.txt' (the 1801 files drop - and _)."""
+    special = {"14Sogn_og_fjordane": "14SognFjordane", "15More_og_Romsdal": "15MoreRomsdal",
+               "03Oslo": "03Kristiania", "09Aust-Agder": "09AustAgder", "10Vest-Agder": "10VestAgder",
+               "16Sor-Trondelag": "16SorTrondelag", "17Nord-Trondelag": "17NordTrondelag"}
+    return f"Ft1801_forsk_{special.get(county_dir, county_dir)}_v1.txt"
 limiter = RateLimiter(1.0)
 
 
@@ -49,23 +54,25 @@ def download(url: str, dest: Path) -> bool:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--county", default="01Ostfold")
+    ap.add_argument("--counties", nargs="+", default=["01Ostfold"],
+                    help="folder names on xml.arkivverket.no, e.g. 01Ostfold 17Nord-Trondelag 04Hedmark")
     ap.add_argument("--years", nargs="+", type=int, default=[1801, 1865, 1900, 1910])
     ap.add_argument("--out", type=Path, default=Path("data/raw"))
     args = ap.parse_args(argv)
 
-    for year in args.years:
-        if year == 1801:
-            name = FT1801[args.county]
-            new = download(f"{BASE}/ft1801/{name}", args.out / "1801" / name)
-            print(f"1801 {name} {'downloaded' if new else 'already present'}")
-            continue
-        listing = get(f"{BASE}/hefter/{year}/{args.county}/").decode("utf-8", "replace")
-        files = sorted(set(re.findall(r'href="([^"/]+_hefte\.pdf)"', listing)))
-        print(f"{year}: {len(files)} booklets")
-        for i, f in enumerate(files, 1):
-            new = download(f"{BASE}/hefter/{year}/{args.county}/{f}", args.out / str(year) / args.county / f)
-            print(f"  [{i}/{len(files)}] {f} {'downloaded' if new else 'present'}", flush=True)
+    for county in args.counties:
+        for year in args.years:
+            if year == 1801:
+                name = ft1801_name(county)
+                new = download(f"{BASE}/ft1801/{name}", args.out / "1801" / name)
+                print(f"1801 {name} {'downloaded' if new else 'already present'}")
+                continue
+            listing = get(f"{BASE}/hefter/{year}/{county}/").decode("utf-8", "replace")
+            files = sorted(set(re.findall(r'href="([^"/]+_hefte\.pdf)"', listing)))
+            print(f"{county} {year}: {len(files)} booklets")
+            for i, f in enumerate(files, 1):
+                new = download(f"{BASE}/hefter/{year}/{county}/{f}", args.out / str(year) / county / f)
+                print(f"  [{i}/{len(files)}] {f} {'downloaded' if new else 'present'}", flush=True)
     return 0
 
 
