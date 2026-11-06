@@ -184,7 +184,14 @@ household (records the customer already added first, otherwise strong and
 possible matches), merges different spellings of the same parent across
 censuses, and flags competing families when namesakes fit equally well. Each
 suggestion can be added to the tree with the record as its source; running it
-again goes one generation further. For each search the customer gets ranked
+again goes one generation further. Sparse trees still get traces:
+someone born between the last census (1910) and the 100-year limit is not in
+any census, so the app lists families with the same surname in the 1910
+census whose parents are the right age (same place first) and offers to add
+them as parents (`/api/families`). A person with no birth year gets an
+estimate from their child (father about 30 years older, mother about 27),
+shown as "omkr." and searched with ± 5 years; people born too recently are
+told why, and what the next step is. For each search the customer gets ranked
 census records. Each card shows the confidence, the reason behind every part of the
 score, the people listed at the same place, and a link to the page in the
 archive's booklet. The customer marks each record "This is them" or "Not them"
