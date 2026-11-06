@@ -63,6 +63,66 @@ def _parse_query(data: dict) -> PersonQuery:
     return PersonQuery.from_dict(clean)
 
 
+def _word_index(app: Flask, year: int) -> dict[str, list[Record]]:
+    """Census year -> phonetic surname/farm word -> records, built once per year."""
+    from ancestor_finder import names as N
+    index = app.config.setdefault("WORD_INDEX", {})
+    if year not in index:
+        idx: dict[str, list[Record]] = {}
+        for r in app.config["SOURCE"].records:
+            if r.year == year:
+                for w in set(N.clean(f"{r.surname} {r.farm}").split()):
+                    k = N.phonetic(w)
+                    if len(k) > 2:
+                        idx.setdefault(k, []).append(r)
+        index[year] = idx
+    return index[year]
+
+
+def _given_index(app: Flask, year: int) -> dict[str, list[Record]]:
+    """Census year -> canonical first given name -> records, built once per year."""
+    from ancestor_finder import names as N
+    index = app.config.setdefault("GIVEN_INDEX_BY_YEAR", {})
+    if year not in index:
+        idx: dict[str, list[Record]] = {}
+        for r in app.config["SOURCE"].records:
+            if r.year == year and r.given_name:
+                idx.setdefault(N.canonical_given(r.given_name), []).append(r)
+        index[year] = idx
+    return index[year]
+
+
+def split_families(house: list[Record]) -> list[dict]:
+    """One dwelling can hold several families: start a new one at each
+    husband-head, or at a wife-coded woman with no husband before her."""
+    from ancestor_finder.importers.households import is_head, is_wife
+    fams, cur = [], None
+    for h in house:
+        starts_male = h.sex == "m" and is_head(h.role, h.sex)
+        starts_female = h.sex == "f" and is_wife(h.role) and (cur is None or cur["mother"] is not None)
+        if starts_male or starts_female:
+            cur = {"father": h if starts_male else None, "mother": h if starts_female else None, "members": [h]}
+            fams.append(cur)
+        elif cur is not None and cur["mother"] is None and h.sex == "f" and is_wife(h.role):
+            cur["mother"] = h; cur["members"].append(h)
+        elif cur is not None:
+            cur["members"].append(h)
+    return fams
+
+
+def warm_indexes(app: Flask) -> None:
+    """Build the word and given-name indexes for the last census, so the first
+    search for a family doesn't wait for them."""
+    years = app.config["COVERAGE"]["years"]
+    if years:
+        _word_index(app, max(years))
+        _given_index(app, max(years))
+
+
+def _brief_named(h: Record | None) -> dict | None:
+    return _person_brief(h) | {"given_name": h.given_name, "surname": h.surname} if h else None
+
+
 def create_app(records_path: Path | str | None = None) -> Flask:
     app = Flask(__name__)
     path = Path(records_path) if records_path else DEMO_RECORDS
@@ -208,7 +268,6 @@ def create_app(records_path: Path | str | None = None) -> Flask:
         surname or farm name matches the child's surname, and ranks those in
         the child's birthplace first. Every result is a lead, never a fact.
         """
-        from ancestor_finder.importers.households import is_head, is_wife
         from ancestor_finder import names as N
         data = request.get_json(silent=True) or {}
         surname = (data.get("surname") or "").strip()
@@ -219,43 +278,16 @@ def create_app(records_path: Path | str | None = None) -> Flask:
         except ValueError:
             child_year = None
         years = sorted(app.config["COVERAGE"]["years"])
+        if not years:
+            return jsonify({"year": None, "families": [], "total": 0})
         year = max([y for y in years if child_year is None or y <= child_year] or years[:1])
         place_k = N.place_key(data.get("birthplace") or "")
         tokens = [t for t in N.clean(surname).split() if len(t) > 2]
 
-        # index: census year -> phonetic surname/farm word -> records (built once per year)
-        index = app.config.setdefault("WORD_INDEX", {})
-        if year not in index:
-            idx: dict[str, list[Record]] = {}
-            for r in source.records:
-                if r.year == year:
-                    for w in set(N.clean(f"{r.surname} {r.farm}").split()):
-                        k = N.phonetic(w)
-                        if len(k) > 2:
-                            idx.setdefault(k, []).append(r)
-            index[year] = idx
-        idx = index[year]
+        idx = _word_index(app, year)
         keys = {k for k in idx for t in tokens if N.word_similarity(t, k) >= 0.92}
         hits = sorted({r.record_id: r for k in keys for r in idx[k]}.values(), key=lambda r: source._pos[r.record_id])
-
-        def split_families(house: list[Record]) -> list[dict]:
-            """One dwelling can hold several families: start a new one at each
-            husband-head, or at a wife-coded woman with no husband before her."""
-            fams, cur = [], None
-            for h in house:
-                starts_male = h.sex == "m" and is_head(h.role, h.sex)
-                starts_female = h.sex == "f" and is_wife(h.role) and (cur is None or cur["mother"] is not None)
-                if starts_male or starts_female:
-                    cur = {"father": h if starts_male else None, "mother": h if starts_female else None, "members": [h]}
-                    fams.append(cur)
-                elif cur is not None and cur["mother"] is None and h.sex == "f" and is_wife(h.role):
-                    cur["mother"] = h; cur["members"].append(h)
-                elif cur is not None:
-                    cur["members"].append(h)
-            return fams
-
-        def brief(h: Record | None) -> dict | None:
-            return _person_brief(h) | {"given_name": h.given_name, "surname": h.surname} if h else None
+        brief = _brief_named
 
         seen_houses, seen_couples, families = set(), set(), []
         for r in hits:
@@ -294,6 +326,75 @@ def create_app(records_path: Path | str | None = None) -> Flask:
                     "members": [_person_brief(h) for h in fam["members"]]})
         families.sort(key=lambda f: -f["score"])
         return jsonify({"year": year, "families": families[:8], "total": len(families)})
+
+    @app.post("/api/parent-leads")
+    def api_parent_leads():
+        """Possible fathers for someone born after the last census, found as
+        men in that census: a father born around 1900 is a child in 1910,
+        living with his own parents, so one find can add two generations.
+
+        A man qualifies when his surname or farm carries the child's surname,
+        or, when the child's surname is a patronymic (Samuelsen), when his
+        given name is its root (Samuel). He must be 18–55 years older than the
+        child. Every result is a lead, never a fact.
+        """
+        from ancestor_finder.importers.households import child_kind
+        from ancestor_finder import names as N
+        data = request.get_json(silent=True) or {}
+        surname = (data.get("surname") or "").strip()
+        try:
+            child_year = int(data.get("birth_year"))
+        except (TypeError, ValueError):
+            return jsonify({"error": "Fødselsår trengs for å lete etter foreldrene.", "kind": "input"}), 400
+        if not surname:
+            return jsonify({"error": "Etternavn trengs for å lete etter foreldrene.", "kind": "input"}), 400
+        years = sorted(app.config["COVERAGE"]["years"])
+        if not years:
+            return jsonify({"year": None, "leads": [], "total": 0})
+        year = max([y for y in years if y <= child_year] or years[:1])
+        lo, hi = child_year - 55, child_year - 18
+        include_heads = bool(data.get("include_heads", True))
+        place_k = N.place_key(data.get("birthplace") or "")
+        tokens = [t for t in N.clean(surname).split() if len(t) > 2]
+
+        found: dict[str, tuple[Record, str]] = {}
+        idx = _word_index(app, year)
+        for k in {k for k in idx for t in tokens if N.word_similarity(t, k) >= 0.92}:
+            for r in idx[k]:
+                found.setdefault(r.record_id, (r, "surname"))
+        # a patronymic surname may come from the father's given name (Samuelsen -> Samuel)
+        roots = {pr[0] for t in tokens if (pr := N.patronymic_root(t))}
+        if roots:
+            for key, recs in _given_index(app, year).items():
+                if N._strip_genitive(key) in roots:
+                    for r in recs:
+                        found.setdefault(r.record_id, (r, "given"))
+
+        leads = []
+        for r, why in found.values():
+            if r.sex != "m" or not r.birth_year or not (lo <= r.birth_year <= hi):
+                continue
+            house = source.household(r.record_id) or [r]
+            fam = next((f for f in split_families(house) if any(h.record_id == r.record_id for h in f["members"])), None)
+            head = bool(fam and fam["father"] and fam["father"].record_id == r.record_id)
+            if head and not include_heads:
+                continue
+            father = mother = wife = None
+            if head:
+                wife = fam["mother"]
+            elif fam and child_kind(r.role):
+                father, mother = fam["father"], fam["mother"]
+            place = r.municipality or r.parish
+            same_place = bool(place_k) and N.word_similarity(N.place_key(place), place_k) >= 0.88
+            score = (2 if same_place else 0) + (1 if why == "surname" else 0) + (1 if father or mother else 0) + \
+                    (1 if abs((child_year - r.birth_year) - 30) <= 8 else 0)
+            leads.append({
+                "score": score, "why": why, "year": year, "farm": r.farm, "place": place, "county": r.county,
+                "source": f"{r.source} · {r.record_id}", "link": _source_link(r), "head": head,
+                "person": _brief_named(r), "father": _brief_named(father), "mother": _brief_named(mother),
+                "wife": _brief_named(wife)})
+        leads.sort(key=lambda x: (-x["score"], abs((child_year - x["person"]["birth_year"]) - 30)))
+        return jsonify({"year": year, "leads": leads[:6], "total": len(leads)})
 
     @app.post("/report")
     def report():

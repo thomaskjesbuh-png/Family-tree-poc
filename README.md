@@ -42,6 +42,14 @@ poppler-utils (`apt-get install poppler-utils` or `brew install poppler`).
 python tools/fetch_census.py --counties 01Ostfold 17Nord-Trondelag 04Hedmark   # ~320 MB into data/raw/
 python import_census.py             # every downloaded county -> data/real/records.csv (~5 min for three)
 python tools/validate_import.py     # compare parsed counts with each booklet's totals
+```
+
+The import stops without writing anything if it finds no downloaded files, and the
+web app refuses to start on an empty records file. On a Mac, the booklets need
+`brew install poppler`; if the download fails with CERTIFICATE_VERIFY_FAILED, run
+*Install Certificates.command* in the Python folder under Applications.
+
+```bash
 python find.py person.yaml --records data/real/records.csv
 ```
 
@@ -191,7 +199,16 @@ census whose parents are the right age (same place first) and offers to add
 them as parents (`/api/families`). A person with no birth year gets an
 estimate from their child (father about 30 years older, mother about 27),
 shown as "omkr." and searched with ± 5 years; people born too recently are
-told why, and what the next step is. For each search the customer gets ranked
+told why, and what the next step is. The search does not stop at a dead end:
+a missing birth year is estimated and searched straight away; a father born
+around 1900 is looked for as a boy in 1910 (`/api/parent-leads`: men 18–55
+years older with the surname, or named after a patronymic surname, so
+Samuelsen also tries Samuel), and adding him brings his parents too, two
+generations from one record; a woman sharing her husband's surname is asked
+for her maiden name; and every uncertain or empty result points to where the
+trail goes on outside Spor: the 1920 census at Digitalarkivet (all of Norway),
+Danish sources when the family has a Danish birthplace, gravestones, and
+relatives. Spor only links to those sites; it never fetches them. For each search the customer gets ranked
 census records. Each card shows the confidence, the reason behind every part of the
 score, the people listed at the same place, and a link to the page in the
 archive's booklet. The customer marks each record "This is them" or "Not them"

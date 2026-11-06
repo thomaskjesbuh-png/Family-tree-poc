@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import shutil
 import sys
 from dataclasses import fields
 from pathlib import Path
@@ -30,6 +31,10 @@ def main(argv=None) -> int:
     ap.add_argument("--out", type=Path, default=Path("data/real/records.csv"))
     args = ap.parse_args(argv)
 
+    if not shutil.which("pdftotext"):
+        print("pdftotext is missing; it reads the census booklets.\n"
+              "  Mac:   brew install poppler\n  Linux: apt install poppler-utils", file=sys.stderr)
+        return 1
     records: list[Record] = []
     counties = args.counties or sorted({p.name for p in args.raw.glob("[0-9]*/*") if p.is_dir()})
     for year in args.years:
@@ -58,6 +63,10 @@ def main(argv=None) -> int:
                 records += recs
             print(f"{year} {county}: {len(files)} booklets, {total} persons")
 
+    if not records:
+        print(f"No census files found under {args.raw}/, so {args.out} was left as it was.\n"
+              "Run tools/fetch_census.py first (from the project folder) and check it downloaded files.", file=sys.stderr)
+        return 1
     args.out.parent.mkdir(parents=True, exist_ok=True)
     names = [f.name for f in fields(Record)]
     with args.out.open("w", encoding="utf-8", newline="") as fh:

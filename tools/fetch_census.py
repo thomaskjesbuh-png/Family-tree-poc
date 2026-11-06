@@ -17,6 +17,7 @@ import argparse
 import re
 import sys
 import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -77,4 +78,11 @@ def main(argv=None) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except urllib.error.URLError as e:
+        msg = f"Download failed: {e.reason}"
+        if "CERTIFICATE_VERIFY_FAILED" in str(e.reason):
+            msg += ("\nPython can't check the site's certificate. On a Mac with Python from python.org, run\n"
+                    "'Install Certificates.command' in the Python folder under Applications, then try again.")
+        sys.exit(msg)

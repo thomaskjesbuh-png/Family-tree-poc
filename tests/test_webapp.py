@@ -96,3 +96,27 @@ def test_families_for_someone_born_after_the_last_census(client):
     old = client.post("/api/families", json={"surname": "Larsen", "birth_year": "1915", "birthplace": "Rakkestad"}).get_json()
     assert all(f["mother"] is None or f["mother"]["birth_year"] >= 1915 - 48 for f in old["families"])
     assert client.post("/api/families", json={"surname": ""}).status_code == 400
+
+
+def test_parent_leads_find_the_father_as_a_boy_in_1910(client):
+    # someone born 1930 named Hansen: a father born around 1900 is a child in 1910.
+    # "Hansen" can come from the father's given name, so Hans Larsen (1908) qualifies,
+    # and his parents come with him.
+    r = client.post("/api/parent-leads", json={"surname": "Hansen", "birth_year": 1930, "birthplace": "Rakkestad"}).get_json()
+    assert r["year"] == 1910
+    hans = next(l for l in r["leads"] if l["person"]["name"] == "Hans Larsen")
+    assert hans["why"] == "given" and not hans["head"]
+    assert hans["father"]["name"] == "Lars Hansen" and hans["mother"]["name"] == "Karen Hansen"
+    # men too young or too old to be the father are left out
+    assert all(1930 - 55 <= l["person"]["birth_year"] <= 1930 - 18 for l in r["leads"])
+    no_heads = client.post("/api/parent-leads", json={"surname": "Hansen", "birth_year": 1930, "include_heads": False}).get_json()
+    assert not any(l["head"] for l in no_heads["leads"])
+    assert client.post("/api/parent-leads", json={"surname": "Hansen"}).status_code == 400
+
+
+def test_family_endpoints_with_no_records(tmp_path):
+    empty = tmp_path / "empty.csv"
+    empty.write_text(open("data/demo/demo_records.csv", encoding="utf-8").readline(), encoding="utf-8")
+    c = create_app(empty).test_client()
+    assert c.post("/api/families", json={"surname": "Løes", "birth_year": 1914}).get_json()["families"] == []
+    assert c.post("/api/parent-leads", json={"surname": "Løes", "birth_year": 1914}).get_json()["leads"] == []

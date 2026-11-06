@@ -23,7 +23,8 @@
   const first = p => ((p && p.given_name) || "").split(" ")[0];
   const sexOf = n => (n === 1 ? "" : n % 2 === 0 ? "m" : "f");
   const traceable = p => p && p.birth_year && Number(p.birth_year) <= CUTOFF;
-  const LAST_CENSUS = Math.max(...S.coverage.years);
+  const LAST_CENSUS = S.coverage.years.length ? Math.max(...S.coverage.years) : 1910;
+  const COUNTIES = S.coverage.counties.length ? S.coverage.counties.join(", ") : "ingen fylker ennå";
   // born after the last census we have, but old enough: they aren't in it, their parents probably are
   const afterCensus = p => traceable(p) && Number(p.birth_year) > LAST_CENSUS;
   const objPron = n => (sexOf(n) === "m" ? "ham" : sexOf(n) === "f" ? "henne" : "personen");
@@ -400,7 +401,7 @@
     const where = q.birthplace ? ` i ${q.birthplace}` : "";
     box.appendChild(el("p", "sp-muted",
       `Vi fant ingen i folketellingene ${S.coverage.years.join(", ")} som passer ${fullName(p) || q.given_name}, født omkring ${q.birth_year}${where}. ` +
-      `${pronoun(q.sex)} kan være oppført med et annet gårdsnavn eller farsnavn, eller ha bodd utenfor ${S.coverage.counties.join(", ")}.`));
+      `${pronoun(q.sex)} kan være oppført med et annet gårdsnavn eller farsnavn, eller ha bodd utenfor ${COUNTIES}.`));
     const acts = el("div", "sp-actions");
     if (String(q.birth_year_tolerance) !== "5") acts.appendChild(btn("Let med ± 5 år", "sp-btn sp-btn-primary", () => { form.elements.birth_year_tolerance.value = "5"; search(); }));
     else if (q.birthplace) acts.appendChild(btn("Let uten fødested", "sp-btn sp-btn-primary", () => { form.elements.birthplace.value = ""; search(); }));
@@ -509,10 +510,38 @@
       prog.textContent = `Ser på ${fullName(p)} (${i + 1} av ${list.length}) …`;
       const group = el("section", "rel-group");
       host.appendChild(group);
-      if (!p.birth_year) { group.appendChild(el("h2", null, fullName(p))); group.appendChild(yearHint(n)); continue; }
-      if (!traceable(p)) { group.appendChild(el("h2", null, fullName(p))); group.appendChild(livingHint(n)); continue; }
-      if (afterCensus(p)) { if (await familyGroup(n, group)) any = true; continue; }
-      let data;
+      group.appendChild(el("h2", null, fullName(p)));
+      group.appendChild(el("p", "rel", relationLabel(n)));
+      if (!p.birth_year) {
+        // no year: estimate one from the child rather than stop here
+        const est = estimateFor(n);
+        if (!est) { group.appendChild(yearHint(n)); continue; }
+        Object.assign(p, { birth_year: String(est), birth_year_estimated: true }); save(); renderTree();
+        group.appendChild(estimateNote(n));
+      }
+      let found = false;
+      const dk = danishPlace(n), uncertain = !traceable(p) || afterCensus(p);
+      if (dk) group.appendChild(elsewhereCard(n));
+      if (!traceable(p)) {
+        found = await leadsGroup(n, group, true);
+        if (!found && !group.querySelector(".rel-card")) group.appendChild(livingHint(n));
+      } else if (afterCensus(p)) {
+        const a = await familyGroup(n, group);
+        const b = await leadsGroup(n, group, false);
+        found = a || b;
+      } else {
+        found = await relativesGroup(n, group, any);
+      }
+      if (found) any = true;
+      if (!dk && (!found || uncertain)) group.appendChild(elsewhereCard(n));
+    }
+    prog.textContent = any ? "Ferdig. Legg til dem som stemmer, og let igjen for neste generasjon."
+      : "Ferdig. Ingen nye spor i kildene denne gangen, men se hvor sporet kan gå videre.";
+  }
+
+  async function relativesGroup(n, group, any) {
+    const p = person(n);
+    let data;
       try {
         const res = await fetch("/api/relatives", { method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ person: queryFor(n), kept: keptOf(p).map(([id]) => id) }) });
@@ -520,13 +549,9 @@
         if (!res.ok) throw new Error(data.error);
       } catch { data = { suggestions: [] }; }
       const sugg = data.suggestions.filter(sg => (sg.relation === "father" ? !person(2 * n) : !person(2 * n + 1)));
-      group.appendChild(el("h2", null, `Foreldrene til ${fullName(p)}`));
-      if (!sugg.length) group.appendChild(el("p", "muted", `Ingen nye spor etter foreldrene til ${first(p)}, foreløpig. Følg sporet til ${first(p)} for å se alle treffene.`));
+      if (!sugg.length) group.appendChild(el("p", "muted", `Ingen nye spor etter foreldrene til ${first(p)} i husstandene ${subjPron(n)} står i, foreløpig. Følg sporet til ${first(p)} for å se alle treffene.`));
       sugg.forEach((sg, j) => group.appendChild(relativeCard(n, sg, !any && j === 0 && sg.confidence === "high")));
-      if (sugg.length) any = true;
-    }
-    prog.textContent = any ? "Ferdig. Legg til dem som stemmer, og let igjen for neste generasjon."
-      : "Ferdig. Ingen nye spor i kildene denne gangen, men se tipsene under.";
+      return sugg.length > 0;
   }
 
   function hintCard(title, text, actions) {
@@ -539,18 +564,18 @@
   }
 
   function yearHint(n) {
-    const p = person(n), est = estimateFor(n), child = person(Math.floor(n / 2));
-    if (est) {
-      const use = btn(`Bruk omkring ${est}`, "sp-btn sp-btn-primary", () => {
-        Object.assign(person(n), { birth_year: String(est), birth_year_estimated: true }); save(); renderTree(); findRelatives(lastList);
-      });
-      return hintCard(`Når ble ${first(p)} født?`,
-        `Vi vet ikke fødselsåret. Siden ${first(child)} er født ${child.birth_year}, er ${first(p)} trolig født omkring ${est}. ` +
-        (est <= CUTOFF ? `Det er gammelt nok til at vi kan lete, med god slingring.` : `Det er nær grensen for levende minne (${CUTOFF}), så foreldrene er det neste sporet.`),
-        [use, btn("Skriv inn fødselsår", "sp-btn", () => edit(n))]);
-    }
+    const p = person(n);
     return hintCard(`Når ble ${first(p)} født?`, "Legg til et fødselsår, gjerne et anslag, så ser vi om vi kan lete etter familien.",
       [btn(`Endre ${first(p)}`, "sp-btn", () => edit(n))]);
+  }
+
+  function estimateNote(n) {
+    const p = person(n), child = person(Math.floor(n / 2));
+    const box = el("p", "muted");
+    box.append(`Vi vet ikke når ${first(p)} ble født, så vi har satt omkring ${p.birth_year} ut fra ${first(child)} (født ${child.birth_year}) og leter med god slingring. `);
+    const b = btn("Skriv inn riktig år", "sp-btn sp-btn-quiet inline", () => edit(n));
+    box.appendChild(b);
+    return box;
   }
 
   function livingHint(n) {
@@ -560,7 +585,7 @@
     if (!person(2 * n)) acts.push(btn("Legg til far", "sp-btn", () => edit(2 * n)));
     if (!person(2 * n + 1)) acts.push(btn("Legg til mor", "sp-btn", () => edit(2 * n + 1)));
     return hintCard(`Foreldrene til ${first(p)}`,
-      `${first(p)} er født ${by}, innenfor levende minne, så vi søker ikke etter ${objPron(n)}. Foreldrene er trolig født omkring ${Math.min(fy, my)}–${Math.max(fy, my)}` +
+      `${first(p)} er født ${bornText(p)}, innenfor levende minne, så vi søker ikke etter ${objPron(n)}. Foreldrene er trolig født omkring ${Math.min(fy, my)}–${Math.max(fy, my)}` +
       (old ? `, gamle nok til at vi kan lete etter dem. Legg dem til hvis du vet hvem de er, også uten fødselsår.` : `. Legg dem til hvis du vet hvem de er.`), acts);
   }
 
@@ -571,9 +596,8 @@
 
   async function familyGroup(n, group) {
     const p = person(n);
-    group.appendChild(el("h2", null, `Familien til ${fullName(p)}`));
     if (!p.surname) {
-      group.appendChild(hintCard("Vi trenger et etternavn", `${first(p)} er født ${p.birth_year}, etter siste folketelling vi har. For å finne familien i ${LAST_CENSUS} leter vi etter navnet, så legg til etternavnet.`,
+      group.appendChild(hintCard("Vi trenger et etternavn", `${first(p)} er født ${bornText(p)}, etter siste folketelling vi har. For å finne familien i ${LAST_CENSUS} leter vi etter navnet, så legg til etternavnet.`,
         [btn(`Endre ${first(p)}`, "sp-btn", () => edit(n))]));
       return false;
     }
@@ -585,10 +609,10 @@
       if (!res.ok) throw new Error(data.error);
     } catch { data = { families: [] }; }
     if (!data.families.length) {
-      group.appendChild(el("p", "muted", `${first(p)} er født ${p.birth_year}, etter siste folketelling vi har, så vi lette etter foreldrene: familier med navnet ${p.surname} i folketellingen ${data.year || LAST_CENSUS}. Vi fant ingen. Spor har foreløpig folketellingene for ${S.coverage.counties.join(", ")}${p.birthplace ? `, og bodde familien i ${p.birthplace} eller et annet sted utenfor, finner vi den ikke ennå` : `. Bodde familien et annet sted, finner vi den ikke ennå`}.`));
+      group.appendChild(el("p", "muted", `${first(p)} er født ${bornText(p)}, etter siste folketelling vi har, så vi lette etter foreldrene: familier med navnet ${p.surname} i folketellingen ${data.year || LAST_CENSUS}. Vi fant ingen. Spor har foreløpig folketellingene for ${COUNTIES}${p.birthplace ? `, så bodde familien i ${p.birthplace} eller et annet sted utenfor, finner vi den ikke her ennå` : `. Bodde familien et annet sted, finner vi den ikke her ennå`}.`));
       return false;
     }
-    group.appendChild(el("p", "muted", `${first(p)} er født ${p.birth_year}, etter siste folketelling vi har. Her er familier med navnet ${p.surname} i folketellingen ${data.year || LAST_CENSUS}${p.birthplace ? `, de fra ${p.birthplace} først` : ""}, med foreldre i riktig alder.`));
+    group.appendChild(el("p", "muted", `${first(p)} er født ${bornText(p)}, etter siste folketelling vi har. Her er familier med navnet ${p.surname} i folketellingen ${data.year || LAST_CENSUS}${p.birthplace ? `, de fra ${p.birthplace} først` : ""}, med foreldre i riktig alder.`));
     data.families.slice(0, 5).forEach(f => group.appendChild(familyCard(n, f)));
     return true;
   }
@@ -615,6 +639,122 @@
     return card;
   }
 
+
+  /* The father as a young man: born around 1900, he is a child in the last
+     census, living with his own parents, so one find can add two generations. */
+  async function leadsGroup(n, group, includeHeads) {
+    const p = person(n), by = Number(p.birth_year);
+    if (person(2 * n) || !p.surname || by - 55 > LAST_CENSUS) return false;
+    const partner = n > 1 ? person(n ^ 1) : null;
+    if (sexOf(n) === "f" && partner && partner.surname && partner.surname === p.surname) {
+      group.appendChild(hintCard(`Pikenavnet til ${first(p)}`,
+        `${p.surname} er trolig navnet ${first(p)} fikk da ${subjPron(n)} giftet seg med ${first(partner)}. Faren hennes bar et annet navn. ` +
+        `Vet du pikenavnet, kan vi lete etter ham.`, [btn("Legg til pikenavnet", "sp-btn", () => edit(n))]));
+      return false;
+    }
+    let data;
+    try {
+      const res = await fetch("/api/parent-leads", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ surname: p.surname, birth_year: by, birthplace: p.birthplace || birthplaceNear(n), include_heads: includeHeads }) });
+      data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+    } catch { data = { leads: [] }; }
+    if (!data.leads.length) return false;
+    const patr = data.leads.some(l => l.why === "given");
+    group.appendChild(el("p", "muted",
+      `Faren til ${first(p)} er trolig født omkring ${by - 30}, og da står han i folketellingen ${data.year}, ` +
+      `${includeHeads ? "ofte som barn hos sine egne foreldre" : "kanskje som ung mann, før han giftet seg"}`+`. Vi lette etter menn født ${by - 55}–${by - 18} med navnet ${p.surname}` +
+      `${patr ? `, eller med fornavnet navnet kan komme av` : ""}. ` +
+      (data.total > data.leads.length ? `${data.total} passer; her er de ${data.leads.length} som passer best${p.birthplace ? "" : ". Et fødested snevrer det inn"}.` : `${data.total} passer.`)));
+    data.leads.forEach(l => group.appendChild(leadCard(n, l)));
+    return true;
+  }
+
+  // a place to rank by when the person has none: the nearest descendant's birthplace
+  function birthplaceNear(n) { for (let c = Math.floor(n / 2); c >= 1; c = Math.floor(c / 2)) if (person(c) && person(c).birthplace) return person(c).birthplace; return ""; }
+
+  function leadCard(n, l) {
+    const p = person(n), card = el("article", "sp-card rel-card"), m = l.person, by = Number(p.birth_year);
+    const head = el("div", "rel-head");
+    head.appendChild(el("span", "sp-eyebrow sp-muted", `Kanskje ${gen_s(first(p))} far`));
+    head.appendChild(badge("unverified"));
+    card.appendChild(head);
+    card.appendChild(el("h3", "sp-find-title", `${m.name}, født ${m.birth_year}`));
+    const at = `${l.farm ? `på ${l.farm}, ` : "i "}${l.place}`;
+    const parents = [l.father, l.mother].filter(Boolean);
+    let story = l.head ? `I ${l.year} er han husfar ${at}${l.wife ? `, gift med ${l.wife.name}, født ${l.wife.birth_year ?? "?"}` : ""}.`
+      : parents.length ? `I ${l.year} bor han ${at} hos ${parents.length === 2 ? "foreldrene" : l.father ? "faren" : "moren"} ${parents.map(x => `${x.name} (født ${x.birth_year ?? "?"})`).join(" og ")}.`
+      : `I ${l.year} bor han ${at}, oppført som ${roleText(m.role) || "ukjent"}.`;
+    story += l.why === "given" ? ` Navnet ${p.surname} kan komme av fornavnet hans.` : ` Han bærer navnet ${p.surname}.`;
+    story += ` Han er ${by - m.birth_year} år eldre enn ${first(p)}${p.birth_year_estimated ? " (ut fra anslaget)" : ""}.`;
+    if (parents.length) story += ` Stemmer det, får du også ${gen_s(first(p))} besteforeldre.`;
+    card.appendChild(el("p", "sp-find-story", story));
+    card.appendChild(el("div", "sp-source", l.source));
+    const acts = el("div", "sp-actions");
+    if (parents.length) acts.appendChild(btn("Legg til far og besteforeldre", "sp-btn", () => addLead(n, l, card, true)));
+    else if (l.head && l.wife && !person(2 * n + 1)) acts.appendChild(btn(`Legg til ham og ${l.wife.given_name.split(" ")[0]} som foreldre`, "sp-btn", () => addLead(n, l, card, false, true)));
+    acts.appendChild(btn(parents.length || l.wife ? "Bare som far" : "Legg til som far", parents.length || l.wife ? "sp-btn sp-btn-quiet" : "sp-btn", () => addLead(n, l, card, false)));
+    if (l.link) { const a = el("a", "sp-btn", "Se kilden"); a.href = l.link; a.target = "_blank"; a.rel = "noopener"; acts.appendChild(a); }
+    acts.appendChild(btn("Ikke denne", "sp-btn sp-btn-quiet", () => card.classList.add("aside")));
+    card.appendChild(acts);
+    return card;
+  }
+
+  function addLead(n, l, card, withGrandparents, withWife) {
+    const place = [l.farm, l.place].filter(Boolean).join(", ");
+    const put = (slot, x, why) => {
+      if (!x || person(slot)) return;
+      const np = cleanPerson({ given_name: x.given_name, surname: x.surname, birth_year: String(x.birth_year || ""), birthplace: x.birthplace || "" });
+      np.kept = { [x.record_id]: { status: "confirmed", confidence: "medium", year: l.year, name: x.name, place,
+        source: l.source.replace(/ · \S+$/, ` · ${x.record_id}`), reasons: [why] } };
+      tree[String(slot)] = np;
+    };
+    put(2 * n, l.person, `Mulig far til ${fullName(person(n))}`);
+    if (withWife) put(2 * n + 1, l.wife, `Mulig mor til ${fullName(person(n))}`);
+    if (withGrandparents) { put(4 * n, l.father, `Foreldre til ${l.person.name} i ${l.year}`); put(4 * n + 1, l.mother, `Foreldre til ${l.person.name} i ${l.year}`); }
+    save();
+    card.classList.add("done");
+    card.querySelectorAll(".sp-actions button").forEach(b => { b.disabled = true; });
+    card.querySelector(".sp-actions .sp-btn").textContent = "Lagt til i treet";
+    card.parentElement.querySelectorAll(".rel-card").forEach(c => { if (c !== card && !c.classList.contains("done")) c.classList.add("aside"); });
+  }
+
+  /* When Spor's own censuses run out, say where the trail goes on. Spor never
+     fetches these sites; the links are for the reader. */
+  const DK_PLACES = new Set(("danmark denmark københavn kjøbenhavn aarhus århus odense aalborg ålborg randers esbjerg kolding horsens vejle viborg silkeborg " +
+    "herning roskilde næstved fredericia helsingør svendborg holstebro haderslev skive sønderborg frederikshavn hjørring thisted nykøbing " +
+    "slagelse holbæk hillerød grenaa grenå struer lemvig ribe tønder aabenraa middelfart nyborg faaborg skagen").split(" "));
+  function danishPlace(n) {
+    for (let c = n; c >= 1; c = Math.floor(c / 2)) {
+      const bp = person(c) && person(c).birthplace;
+      if (bp && bp.toLowerCase().split(/[^a-zæøåäö]+/).some(w => DK_PLACES.has(w))) return bp;
+    }
+    return "";
+  }
+
+  function elsewhereCard(n) {
+    const p = person(n), by = Number(p.birth_year) || null, dk = danishPlace(n), items = [];
+    if (dk) items.push(["Danske kilder", `${dk} ligger i Danmark, så ${p.birthplace === dk ? first(p) : "familien"} står trolig i danske kirkebøker og folketellinger. De er gratis å søke i hos Danish Family Search. Treff i norske kilder er derfor mindre sannsynlige.`,
+      "https://www.danishfamilysearch.dk/", "danishfamilysearch.dk"]);
+    if (!dk && by && by <= 1960) items.push(["Folketellingen 1920",
+      (by <= 1920 ? `${first(p)} står trolig selv i folketellingen 1920, sammen med foreldrene.` : `Foreldrene til ${first(p)} var trolig ${by - 1920 > 25 ? "barn" : "unge"} i 1920 og står i folketellingen det året.`) +
+      " Den dekker hele landet og er søkbar hos Digitalarkivet, men er ikke i Spor ennå.", "https://www.digitalarkivet.no/census/search/1920", "digitalarkivet.no"]);
+    if (!dk && (!by || by > CUTOFF || p.birth_year_estimated)) items.push(["Gravminner",
+      `Gravsteiner viser fødsels- og dødsår. Søk etter ${fullName(p)} i gravminnebasen til Slekt og Data.`, "https://www.slektogdata.no/gravminner", "slektogdata.no"]);
+    items.push(["Spør i familien", `Eldre slektninger, dødsannonser, gamle brev og konfirmasjonsbilder gir ofte fødselsår, fødested og pikenavn. Det er nøkkelen til neste spor.`]);
+    const c = el("article", "sp-card rel-card");
+    c.appendChild(el("span", "sp-eyebrow sp-muted", "Andre steder å lete"));
+    c.appendChild(el("h3", "sp-find-title", `Sporet etter ${gen_s(first(p))} familie går videre her`));
+    const ul = el("ul", "elsewhere");
+    for (const [t, text, href, host] of items) {
+      const li = el("li"); li.appendChild(el("b", null, t)); li.appendChild(el("span", "sp-muted", text));
+      if (href) { const a = el("a", null, `Gå til ${host} ↗`); a.href = href; a.target = "_blank"; a.rel = "noopener"; li.appendChild(a); }
+      ul.appendChild(li);
+    }
+    c.appendChild(ul);
+    return c;
+  }
+
   function addFamily(n, fam, card) {
     for (const [slot, par] of [[2 * n, fam.father], [2 * n + 1, fam.mother]]) {
       if (!par || person(slot)) continue;
@@ -639,7 +779,7 @@
       box.appendChild(el("p", "sp-muted", "Legg til flere personer bakover, eller følg sporet til noen for å finne flere kilder."));
     } else {
       box.appendChild(el("h3", null, "Treet ditt når ikke folketellingene ennå"));
-      box.appendChild(el("p", "sp-muted", `Vi kan bare lete etter personer født i ${CUTOFF} eller tidligere, i folketellingene for ${S.coverage.counties.join(", ")}. ` +
+      box.appendChild(el("p", "sp-muted", `Vi kan bare lete etter personer født i ${CUTOFF} eller tidligere, i folketellingene for ${COUNTIES}. ` +
         "Legg til den eldste du vet om, gjerne en besteforelder eller oldeforelder, så leter vi videre derfra."));
     }
     const acts = el("div", "sp-actions");
