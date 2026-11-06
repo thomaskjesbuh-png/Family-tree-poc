@@ -141,3 +141,23 @@ tr.me td { background: var(--fjord-soft); font-weight: 600; }
 .elsewhere li:first-child { border-top: 0; padding-top: 0; }
 .elsewhere b { font: 600 14px/20px var(--font-sans); }
 .elsewhere a { font: 600 13px/18px var(--font-sans); width: max-content; }
+/* one suggestion at a time */
+.choice { display: grid; gap: var(--space-3); }
+.choice-verdict { margin: 0; font-weight: 600; }
+.choice-filter { margin: 0; font-size: 14px; color: var(--ink-muted); }
+.choice-q { border: 1px dashed var(--line-strong); border-radius: var(--radius-md); padding: var(--space-4); display: grid; gap: var(--space-2); }
+.choice-q-text { margin: 0; font: 500 18px/24px var(--font-serif); }
+.choice-q .sp-actions { flex-wrap: wrap; }
+.choice-others > summary, .more-places > summary { cursor: pointer; font: 600 13px/18px var(--font-sans); color: var(--link); padding: var(--space-1) 0; width: max-content; }
+.choice-others table { margin-top: var(--space-2); }
+.choice-others td:last-child { text-align: right; width: 1%; }
+.more-places > .sp-card { margin-top: var(--space-2); }
+.sp-btn.inline { min-height: 0; padding: 2px var(--space-2); }
+.rel-summary { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.rel-chip { display: grid; padding: var(--space-2) var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-md);
+  background: var(--surface-raised); color: var(--ink); text-decoration: none; font-size: 13px; line-height: 18px; }
+.rel-chip b { font: 500 15px/20px var(--font-serif); }
+.rel-chip span { color: var(--ink-muted); }
+.rel-chip.clear { border-color: var(--moss); }
+.rel-chip.clear span { color: var(--moss); }
+.rel-chip.unclear { border-style: dashed; border-color: var(--line-strong); }

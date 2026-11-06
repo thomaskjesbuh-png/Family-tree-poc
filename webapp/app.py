@@ -325,7 +325,7 @@ def create_app(records_path: Path | str | None = None) -> Flask:
                     "father": brief(f), "mother": brief(m),
                     "members": [_person_brief(h) for h in fam["members"]]})
         families.sort(key=lambda f: -f["score"])
-        return jsonify({"year": year, "families": families[:8], "total": len(families)})
+        return jsonify({"year": year, "families": families[:20], "total": len(families)})
 
     @app.post("/api/parent-leads")
     def api_parent_leads():
@@ -394,7 +394,7 @@ def create_app(records_path: Path | str | None = None) -> Flask:
                 "person": _brief_named(r), "father": _brief_named(father), "mother": _brief_named(mother),
                 "wife": _brief_named(wife)})
         leads.sort(key=lambda x: (-x["score"], abs((child_year - x["person"]["birth_year"]) - 30)))
-        return jsonify({"year": year, "leads": leads[:6], "total": len(leads)})
+        return jsonify({"year": year, "leads": leads[:40], "total": len(leads)})
 
     @app.post("/report")
     def report():

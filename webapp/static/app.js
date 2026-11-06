@@ -526,17 +526,23 @@
         found = await leadsGroup(n, group, true);
         if (!found && !group.querySelector(".rel-card")) group.appendChild(livingHint(n));
       } else if (afterCensus(p)) {
-        const a = await familyGroup(n, group);
-        const b = await leadsGroup(n, group, false);
-        found = a || b;
+        found = await familyGroup(n, group) || await leadsGroup(n, group, false);
       } else {
         found = await relativesGroup(n, group, any);
       }
       if (found) any = true;
-      if (!dk && (!found || uncertain)) group.appendChild(elsewhereCard(n));
+      if (!dk && (!found || uncertain)) {
+        const e = elsewhereCard(n);
+        if (found) { const d = el("details", "more-places"); d.appendChild(el("summary", null, "Andre steder å lete")); d.appendChild(e); group.appendChild(d); }
+        else group.appendChild(e);
+      }
+      if (!group.dataset.state) group.dataset.state = found ? "clear" : "none";
     }
-    prog.textContent = any ? "Ferdig. Legg til dem som stemmer, og let igjen for neste generasjon."
-      : "Ferdig. Ingen nye spor i kildene denne gangen, men se hvor sporet kan gå videre.";
+    const count = st => host.querySelectorAll(`.rel-group[data-state="${st}"]`).length;
+    const parts = [count("clear") && `${count("clear")} med et tydelig beste spor`, count("unclear") && `${count("unclear")} der du kan hjelpe oss å velge`,
+      count("none") && `${count("none")} uten spor i Spor ennå`].filter(Boolean);
+    prog.textContent = `Ferdig: ${parts.join(", ")}.`;
+    renderSummary(host);
   }
 
   async function relativesGroup(n, group, any) {
@@ -551,6 +557,7 @@
       const sugg = data.suggestions.filter(sg => (sg.relation === "father" ? !person(2 * n) : !person(2 * n + 1)));
       if (!sugg.length) group.appendChild(el("p", "muted", `Ingen nye spor etter foreldrene til ${first(p)} i husstandene ${subjPron(n)} står i, foreløpig. Følg sporet til ${first(p)} for å se alle treffene.`));
       sugg.forEach((sg, j) => group.appendChild(relativeCard(n, sg, !any && j === 0 && sg.confidence === "high")));
+      if (sugg.length) group.dataset.state = sugg.some(sg => sg.confidence === "high" && !sg.rivals) ? "clear" : "unclear";
       return sugg.length > 0;
   }
 
@@ -612,8 +619,8 @@
       group.appendChild(el("p", "muted", `${first(p)} er født ${bornText(p)}, etter siste folketelling vi har, så vi lette etter foreldrene: familier med navnet ${p.surname} i folketellingen ${data.year || LAST_CENSUS}. Vi fant ingen. Spor har foreløpig folketellingene for ${COUNTIES}${p.birthplace ? `, så bodde familien i ${p.birthplace} eller et annet sted utenfor, finner vi den ikke her ennå` : `. Bodde familien et annet sted, finner vi den ikke her ennå`}.`));
       return false;
     }
-    group.appendChild(el("p", "muted", `${first(p)} er født ${bornText(p)}, etter siste folketelling vi har. Her er familier med navnet ${p.surname} i folketellingen ${data.year || LAST_CENSUS}${p.birthplace ? `, de fra ${p.birthplace} først` : ""}, med foreldre i riktig alder.`));
-    data.families.slice(0, 5).forEach(f => group.appendChild(familyCard(n, f)));
+    group.appendChild(el("p", "muted", `${first(p)} er født ${bornText(p)}, etter siste folketelling vi har (${data.year || LAST_CENSUS}). Vi lette etter familier med navnet ${p.surname} der foreldrene har riktig alder.`));
+    choiceList(n, group, data.families, "family", data.total);
     return true;
   }
 
@@ -634,7 +641,7 @@
     const acts = el("div", "sp-actions");
     acts.appendChild(btn("Legg til som foreldre", "sp-btn", () => addFamily(n, fam, card)));
     if (fam.link) { const a = el("a", "sp-btn", "Se kilden"); a.href = fam.link; a.target = "_blank"; a.rel = "noopener"; acts.appendChild(a); }
-    acts.appendChild(btn("Ikke denne", "sp-btn sp-btn-quiet", () => card.classList.add("aside")));
+    acts.appendChild(btn("Ikke denne", "sp-btn sp-btn-quiet", () => reject(n, fam.source, card)));
     card.appendChild(acts);
     return card;
   }
@@ -662,11 +669,10 @@
     if (!data.leads.length) return false;
     const patr = data.leads.some(l => l.why === "given");
     group.appendChild(el("p", "muted",
-      `Faren til ${first(p)} er trolig født omkring ${by - 30}, og da står han i folketellingen ${data.year}, ` +
-      `${includeHeads ? "ofte som barn hos sine egne foreldre" : "kanskje som ung mann, før han giftet seg"}`+`. Vi lette etter menn født ${by - 55}–${by - 18} med navnet ${p.surname}` +
-      `${patr ? `, eller med fornavnet navnet kan komme av` : ""}. ` +
-      (data.total > data.leads.length ? `${data.total} passer; her er de ${data.leads.length} som passer best${p.birthplace ? "" : ". Et fødested snevrer det inn"}.` : `${data.total} passer.`)));
-    data.leads.forEach(l => group.appendChild(leadCard(n, l)));
+      `Faren til ${first(p)} er trolig født omkring ${by - 30}, og står da i folketellingen ${data.year}` +
+      `${includeHeads ? ", ofte som barn hos sine egne foreldre" : ""}. Vi lette etter menn i riktig alder med navnet ${p.surname}` +
+      `${patr ? " eller et fornavn navnet kan komme av" : ""}.`));
+    choiceList(n, group, data.leads, "lead", data.total);
     return true;
   }
 
@@ -695,7 +701,7 @@
     else if (l.head && l.wife && !person(2 * n + 1)) acts.appendChild(btn(`Legg til ham og ${l.wife.given_name.split(" ")[0]} som foreldre`, "sp-btn", () => addLead(n, l, card, false, true)));
     acts.appendChild(btn(parents.length || l.wife ? "Bare som far" : "Legg til som far", parents.length || l.wife ? "sp-btn sp-btn-quiet" : "sp-btn", () => addLead(n, l, card, false)));
     if (l.link) { const a = el("a", "sp-btn", "Se kilden"); a.href = l.link; a.target = "_blank"; a.rel = "noopener"; acts.appendChild(a); }
-    acts.appendChild(btn("Ikke denne", "sp-btn sp-btn-quiet", () => card.classList.add("aside")));
+    acts.appendChild(btn("Ikke denne", "sp-btn sp-btn-quiet", () => reject(n, l.source, card)));
     card.appendChild(acts);
     return card;
   }
@@ -730,6 +736,113 @@
       if (bp && bp.toLowerCase().split(/[^a-zæøåäö]+/).some(w => DK_PLACES.has(w))) return bp;
     }
     return "";
+  }
+
+
+  /* One suggestion at a time. The best one is shown as a card with a plain
+     verdict; when several fit about equally, a question the reader may know
+     the answer to narrows them down; the rest wait in a compact table. */
+  // "Ikke denne" is remembered on the person, so a rejected suggestion doesn't come back
+  const keyOf = src => src.split(" · ").pop();
+  function reject(n, src, card) {
+    const p = person(n); p.rejected = [...new Set([...(p.rejected || []), keyOf(src)])]; save();
+    card.classList.add("aside");
+  }
+
+  function choiceList(n, group, items, kind, total) {
+    const p = person(n), box = el("div", "choice");
+    const gone = new Set(p.rejected || []);
+    const hidden = items.filter(it => gone.has(keyOf(it.source))).length;
+    items = items.filter(it => !gone.has(keyOf(it.source)));
+    if (hidden) group.appendChild(el("p", "choice-filter", `${hidden} forslag du har avvist tidligere, er skjult.`));
+    if (!items.length) { group.appendChild(el("p", "muted", "Du har avvist alle forslagene vi har.")); group.dataset.state = "none"; return; }
+    group.appendChild(box);
+    const make = it => (kind === "lead" ? leadCard(n, it) : familyCard(n, it));
+    const parentOf = it => (kind === "lead" ? it.person : it.father || it.mother);
+    const firstName = x => ((x && x.given_name) || "").split(" ")[0];
+    const facets = [
+      { id: "place", q: `Vet du hvor familien til ${first(p)} bodde rundt ${items[0].year}?`, key: it => it.place },
+      { id: "name", q: `Vet du hva faren til ${first(p)} het til fornavn?`, key: it => firstName(kind === "lead" ? it.person : it.father) },
+    ];
+    const render = (list, answers) => {
+      box.innerHTML = "";
+      // clear only when the best is a strong match (place, name and family fit) and well ahead of the next
+      const strong = list[0].score >= 3, clear = strong && (list.length === 1 || list[0].score - list[1].score >= 2);
+      group.dataset.state = clear ? "clear" : "unclear";
+      if (answers.length) {
+        const f = el("p", "choice-filter");
+        f.append(`Du svarte: ${answers.map(a => a.label).join(" · ")}. `);
+        f.appendChild(btn("Nullstill", "sp-btn sp-btn-quiet inline", () => render(items, [])));
+        box.appendChild(f);
+      }
+      if (!list.length) { box.appendChild(el("p", "muted", "Ingen av forslagene passer med det du vet. Da bodde familien trolig et annet sted enn Spor dekker ennå.")); return; }
+      const more = !answers.length && total > 1 ? ` (av ${total} mulige)` : "";
+      box.appendChild(el("p", "choice-verdict", clear
+        ? (list.length === 1 ? "Bare ett forslag passer, og det passer godt." : `Beste spor. Det passer klart bedre enn de ${list.length - 1} andre.`)
+        : list.length === 1 ? `Bare ett forslag, og det er svakt. Sjekk kilden før du legger det til.`
+        : (() => { const k = list.filter(x => list[0].score - x.score <= 1).length;
+            return k > 8 ? `Mange forslag passer omtrent like godt${more}. Svar på spørsmålet, så snevrer vi det inn.`
+              : `${k} forslag passer omtrent like godt${more}. Dette er det best rangerte, men det er ikke sikkert.`; })()));
+      // when it's unclear, ask first: the answer decides which card is worth reading
+      if (!clear) {
+        const asked = answers.map(a => a.id);
+        const f = facets.find(f => !asked.includes(f.id) && new Set(list.map(f.key).filter(Boolean)).size >= 2);
+        if (f) box.appendChild(questionCard(f, list, answers, render));
+      }
+      let top = make(list[0]);
+      box.appendChild(top);
+      if (list.length > 1) {
+        const d = el("details", "choice-others");
+        d.appendChild(el("summary", null, `Se ${list.length - 1} andre forslag`));
+        const t = el("table");
+        t.innerHTML = `<thead><tr><th>${kind === "lead" ? "Mulig far" : "Foreldre"}</th><th>Født</th><th>Bodde</th><th></th></tr></thead>`;
+        const tb = el("tbody");
+        list.slice(1).forEach(it => {
+          const tr = el("tr");
+          const who = kind === "lead" ? it.person.name : [it.father, it.mother].filter(Boolean).map(x => x.name).join(" og ");
+          const born = kind === "lead" ? it.person.birth_year : [it.father, it.mother].filter(Boolean).map(x => x.birth_year ?? "?").join(", ");
+          [who, born, [it.farm, it.place].filter(Boolean).join(", ")].forEach(v => tr.appendChild(el("td", null, v)));
+          const td = el("td");
+          td.appendChild(btn("Vis", "sp-btn sp-btn-quiet inline", () => { const c = make(it); top.replaceWith(c); top = c; c.scrollIntoView({ block: "nearest", behavior: "smooth" }); }));
+          tr.appendChild(td); tb.appendChild(tr);
+        });
+        t.appendChild(tb); d.appendChild(t); box.appendChild(d);
+      }
+    };
+    render(items, []);
+  }
+
+  function questionCard(f, list, answers, render) {
+    const c = el("div", "choice-q");
+    c.appendChild(el("span", "sp-eyebrow sp-muted", "Hjelp oss å velge"));
+    c.appendChild(el("p", "choice-q-text", f.q));
+    const counts = new Map();
+    list.forEach(it => { const v = f.key(it); if (v) counts.set(v, (counts.get(v) || 0) + 1); });
+    const acts = el("div", "sp-actions");
+    [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).forEach(([v, k]) =>
+      acts.appendChild(btn(`${v}${k > 1 ? ` (${k})` : ""}`, "sp-btn", () => render(list.filter(it => f.key(it) === v), [...answers, { id: f.id, label: v }]))));
+    acts.appendChild(btn("Et annet", "sp-btn sp-btn-quiet", () => render(list.filter(it => !counts.has(f.key(it))), [...answers, { id: f.id, label: "et annet" }])));
+    acts.appendChild(btn("Vet ikke", "sp-btn sp-btn-quiet", () => render(list, [...answers, { id: f.id, label: "vet ikke" }])));
+    c.appendChild(acts);
+    return c;
+  }
+
+  /* A line per person at the top, so the reader sees where to start. */
+  function renderSummary(host) {
+    const groups = [...host.querySelectorAll(".rel-group")];
+    if (groups.length < 2) return;
+    const nav = el("nav", "rel-summary");
+    nav.setAttribute("aria-label", "Oversikt");
+    const label = { clear: "Tydelig spor", unclear: "Trenger svar fra deg", none: "Se neste steg" };
+    groups.forEach((g, i) => {
+      g.id = g.id || `rel-${i}`;
+      const a = el("a", `rel-chip ${g.dataset.state}`);
+      a.href = "#" + g.id;
+      a.appendChild(el("b", null, g.querySelector("h2").textContent));
+      a.appendChild(el("span", null, label[g.dataset.state] || ""));
+      nav.appendChild(a);
+    });
+    host.prepend(nav);
   }
 
   function elsewhereCard(n) {
