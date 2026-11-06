@@ -161,3 +161,38 @@ tr.me td { background: var(--fjord-soft); font-weight: 600; }
 .rel-chip.clear { border-color: var(--moss); }
 .rel-chip.clear span { color: var(--moss); }
 .rel-chip.unclear { border-style: dashed; border-color: var(--line-strong); }
+/* undersøk et spor */
+.investigate .title { margin-top: var(--space-1); }
+.inv-meter { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin: var(--space-4) 0 var(--space-8);
+  padding: var(--space-3) var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface-raised); }
+.inv-meter p { margin: 0; flex-basis: 100%; }
+.inv-bar { display: flex; gap: 4px; }
+.inv-bar span { width: 40px; height: 6px; border-radius: 3px; background: var(--line); }
+.inv-bar span.on { background: var(--moss); }
+.inv-body { display: grid; gap: var(--space-8); }
+.inv-sec { display: grid; gap: var(--space-3); }
+.inv-sec > h2, .inv-decide > h2 { font-size: 22px; line-height: 28px; font-weight: 500; }
+.inv-sec > p { margin: 0; }
+table.evidence th[scope], table.evidence tbody th { text-align: left; font-weight: 600; color: var(--ink); padding: 6px 4px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+table.evidence td { padding: 6px 4px; vertical-align: top; }
+table.evidence td:nth-child(2) { font-variant-numeric: normal; }
+.ev-mark { display: inline-block; width: 1.2em; font-weight: 600; }
+.ev-ok { color: var(--moss); }
+.ev-part { color: var(--ink); }
+.ev-unknown { color: var(--ink-muted); }
+.ev-no { color: var(--clay); }
+.inv-q { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--space-2) var(--space-4);
+  padding: var(--space-3) 0; border-top: 1px solid var(--line); }
+.inv-q p { margin: 0; font: 500 17px/24px var(--font-serif); }
+.seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); overflow: hidden; }
+.seg-btn { font: 600 13px/18px var(--font-sans); padding: 8px 14px; border: 0; background: var(--surface-raised); color: var(--ink); cursor: pointer; }
+.seg-btn + .seg-btn { border-left: 1px solid var(--line-strong); }
+.seg-btn.on { background: var(--fjord); color: var(--surface-raised); }
+.inv-check { display: flex; gap: var(--space-2); align-items: center; font-weight: 400; font-size: 15px; margin: 0; }
+.inv-check input { width: 18px; height: 18px; margin: 0; }
+.inv-decide { display: grid; gap: var(--space-3); padding-top: var(--space-6); border-top: 1px solid var(--line-strong); }
+.inv-decide > p { margin: 0; }
+.inv-missing { margin: 0; padding-left: 1.2em; color: var(--ink-muted); }
+.inv-log { margin: var(--space-2) 0 0; padding-left: 1.2em; font-size: 14px; line-height: 20px; color: var(--ink-muted); display: grid; gap: var(--space-1); }
+.research-log > summary { cursor: pointer; }
+.tnode.uncertain { border-style: dashed; }

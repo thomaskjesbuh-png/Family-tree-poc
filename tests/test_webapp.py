@@ -120,3 +120,12 @@ def test_family_endpoints_with_no_records(tmp_path):
     c = create_app(empty).test_client()
     assert c.post("/api/families", json={"surname": "Løes", "birth_year": 1914}).get_json()["families"] == []
     assert c.post("/api/parent-leads", json={"surname": "Løes", "birth_year": 1914}).get_json()["leads"] == []
+
+
+def test_investigate_returns_household_and_only_real_corroboration(client):
+    r = client.post("/api/investigate", json={"record_id": "demo1910-035"}).get_json()
+    assert r["record"]["name"] == "Hans Larsen" and r["record"]["father"] == "Lars Hansen"
+    assert {h["name"] for h in r["household"]} >= {"Lars Hansen", "Karen Hansen", "Hans Larsen"}
+    # a namesake without the same family is not evidence
+    assert all(e["same_family"] or e["confidence"] == "high" for e in r["elsewhere"])
+    assert client.post("/api/investigate", json={"record_id": "nope"}).status_code == 404

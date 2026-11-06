@@ -209,7 +209,15 @@ generations from one record; a woman sharing her husband's surname is asked
 for her maiden name; and every uncertain or empty result points to where the
 trail goes on outside Spor: the 1920 census at Digitalarkivet (all of Norway),
 Danish sources when the family has a Danish birthplace, gravestones, and
-relatives. Spor only links to those sites; it never fetches them. For each search the customer gets ranked
+relatives. Spor only links to those sites; it never fetches them. Nothing is added straight from a
+suggestion: "Undersøk nærmere" opens an investigation page that puts what the
+tree knows next to what the source says, looks for the same person with the
+same family in the other censuses (`/api/investigate`; namesakes without the
+family don't count), asks questions only the family can answer (the father's
+and grandparents' names, where the family came from), and asks the reader to
+read the source. Adding is offered at "Sannsynlig" (an independent check plus
+enough agreement) and "Bekreftet"; below that only as "usikker", shown dashed in
+the tree. Every decision goes into a research log on the person. For each search the customer gets ranked
 census records. Each card shows the confidence, the reason behind every part of the
 score, the people listed at the same place, and a link to the page in the
 archive's booklet. The customer marks each record "This is them" or "Not them"

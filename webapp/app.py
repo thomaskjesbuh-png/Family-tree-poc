@@ -396,6 +396,49 @@ def create_app(records_path: Path | str | None = None) -> Flask:
         leads.sort(key=lambda x: (-x["score"], abs((child_year - x["person"]["birth_year"]) - 30)))
         return jsonify({"year": year, "leads": leads[:40], "total": len(leads)})
 
+    @app.post("/api/investigate")
+    def api_investigate():
+        """Evidence for one suggested record: its household, and the same
+        person in the other censuses, found by name, birth year, parents and
+        spouse as written in this record. A second census with the same
+        parents is the strongest check Spor can make on its own."""
+        data = request.get_json(silent=True) or {}
+        r = source.get(str(data.get("record_id") or ""))
+        if r is None:
+            return jsonify({"error": "Fant ikke posten.", "kind": "input"}), 404
+        house = source.household(r.record_id) or [r]
+        out = {"record": _brief_named(r) | {"farm": r.farm, "place": r.municipality or r.parish, "year": r.year,
+                                           "father": r.father_name, "mother": r.mother_name, "spouse": r.spouse_name,
+                                           "source": r.source, "link": _source_link(r)},
+               "household": [_person_brief(h) for h in house], "elsewhere": []}
+        if not r.given_name or not r.birth_year:
+            return jsonify(out)
+        q = PersonQuery(given_name=r.given_name, surname=r.surname, birth_year=r.birth_year, birth_year_tolerance=2,
+                        sex=r.sex, father_name=r.father_name or "", mother_name=r.mother_name or "",
+                        spouse_name=r.spouse_name or "")
+        try:
+            res = find(q, source, helper=None)
+        except (PrivacyError, ValueError):
+            return jsonify(out)
+        best: dict[int, dict] = {}
+        for c in res.candidates:
+            o = c.record
+            if o.year == r.year or o.year in best or c.confidence not in ("high", "medium"):
+                continue
+            fam = next((p for p in c.parts if p.name == "family"), None)
+            same = bool(fam and fam.score >= 0.85 and (q.father_name or q.mother_name or q.spouse_name))
+            if not same and c.confidence != "high":
+                continue   # a namesake without the same family is no evidence
+            best[o.year] = {
+                "year": o.year, "name": o.full_name, "birth_year": o.birth_year, "role": o.role,
+                "farm": o.farm, "place": o.municipality or o.parish, "confidence": c.confidence,
+                "father": o.father_name, "mother": o.mother_name, "spouse": o.spouse_name,
+                # the family part scores parents and spouse against this record's
+                "same_family": same,
+                "record_id": o.record_id, "source": o.source, "link": _source_link(o)}
+        out["elsewhere"] = sorted(best.values(), key=lambda x: x["year"])
+        return jsonify(out)
+
     @app.post("/report")
     def report():
         """Printable report of the records the user confirmed."""

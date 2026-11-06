@@ -76,7 +76,7 @@
   const CHECK = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="6.25"/><path d="M5.3 8.2l1.8 1.8 3.6-3.8"/></svg>';
 
   /* ---------------- visninger ---------------- */
-  function show(view) { for (const id of ["start-view", "tree-view", "search-view", "relatives-view"]) $("#" + id).hidden = id !== view; window.scrollTo(0, 0); }
+  function show(view) { for (const id of ["start-view", "tree-view", "search-view", "relatives-view", "investigate-view"]) $("#" + id).hidden = id !== view; window.scrollTo(0, 0); }
   function route() {
     if (!person(1)) { show("start-view"); return; }
     if (!person(focus)) focus = 1;
@@ -135,7 +135,7 @@
 
     for (const n of ids.sort((a, b) => a - b)) {
       const p = person(n);
-      const b = el("button", "tnode" + (n === focus ? " active" : ""));
+      const b = el("button", "tnode" + (n === focus ? " active" : "") + (p.uncertain ? " uncertain" : ""));
       b.type = "button"; b.dataset.n = n;
       b.style.left = x[n] + "px"; b.style.top = y(n) + "px";
       b.setAttribute("aria-pressed", String(n === focus));
@@ -180,6 +180,7 @@
     else if (afterCensus(p)) state = `Født etter siste folketelling vi har (${LAST_CENSUS}), så ${subjPron(n)} står ikke i den. Foreldrene gjør trolig det.`;
     else if (kept.length) state = `Funnet i ${kept.length} ${kept.length === 1 ? "kilde" : "kilder"}. Let gjerne videre.`;
     else state = "Klar til å spores i folketellingene.";
+    if (p.uncertain) state = "Usikker: lagt til uten nok bevis. " + state;
     card.appendChild(el("p", "state", state));
 
     const acts = el("div", "sp-actions");
@@ -192,6 +193,14 @@
     if (kept.length) acts.appendChild(btn("Les kapittelet", "sp-btn sp-btn-quiet", () => chapter(n)));
     card.appendChild(acts);
     pane.appendChild(card);
+
+    if ((p.research || []).length) {
+      const sec = el("details", "sp-card research-log");
+      sec.appendChild(el("summary", "sp-eyebrow sp-muted", `Forskningslogg (${p.research.length})`));
+      const ul = el("ul", "inv-log");
+      p.research.slice().reverse().forEach(r => ul.appendChild(el("li", null, `${r.date}: ${r.text}`)));
+      sec.appendChild(ul); pane.appendChild(sec);
+    }
 
     if (kept.length) {
       const sec = el("section", "sp-card");
@@ -554,7 +563,8 @@
         data = await res.json();
         if (!res.ok) throw new Error(data.error);
       } catch { data = { suggestions: [] }; }
-      const sugg = data.suggestions.filter(sg => (sg.relation === "father" ? !person(2 * n) : !person(2 * n + 1)));
+      const gone = new Set(p.rejected || []);
+      const sugg = data.suggestions.filter(sg => (sg.relation === "father" ? !person(2 * n) : !person(2 * n + 1)) && !gone.has(sg.record_id));
       if (!sugg.length) group.appendChild(el("p", "muted", `Ingen nye spor etter foreldrene til ${first(p)} i husstandene ${subjPron(n)} står i, foreløpig. Følg sporet til ${first(p)} for å se alle treffene.`));
       sugg.forEach((sg, j) => group.appendChild(relativeCard(n, sg, !any && j === 0 && sg.confidence === "high")));
       if (sugg.length) group.dataset.state = sugg.some(sg => sg.confidence === "high" && !sg.rivals) ? "clear" : "unclear";
@@ -639,7 +649,7 @@
     t.appendChild(tb); card.appendChild(t);
     card.appendChild(el("div", "sp-source", fam.source));
     const acts = el("div", "sp-actions");
-    acts.appendChild(btn("Legg til som foreldre", "sp-btn", () => addFamily(n, fam, card)));
+    acts.appendChild(btn("Undersøk nærmere", "sp-btn", () => investigate({ n, kind: "family", item: fam, card })));
     if (fam.link) { const a = el("a", "sp-btn", "Se kilden"); a.href = fam.link; a.target = "_blank"; a.rel = "noopener"; acts.appendChild(a); }
     acts.appendChild(btn("Ikke denne", "sp-btn sp-btn-quiet", () => reject(n, fam.source, card)));
     card.appendChild(acts);
@@ -697,9 +707,7 @@
     card.appendChild(el("p", "sp-find-story", story));
     card.appendChild(el("div", "sp-source", l.source));
     const acts = el("div", "sp-actions");
-    if (parents.length) acts.appendChild(btn("Legg til far og besteforeldre", "sp-btn", () => addLead(n, l, card, true)));
-    else if (l.head && l.wife && !person(2 * n + 1)) acts.appendChild(btn(`Legg til ham og ${l.wife.given_name.split(" ")[0]} som foreldre`, "sp-btn", () => addLead(n, l, card, false, true)));
-    acts.appendChild(btn(parents.length || l.wife ? "Bare som far" : "Legg til som far", parents.length || l.wife ? "sp-btn sp-btn-quiet" : "sp-btn", () => addLead(n, l, card, false)));
+    acts.appendChild(btn("Undersøk nærmere", "sp-btn", () => investigate({ n, kind: "lead", item: l, card })));
     if (l.link) { const a = el("a", "sp-btn", "Se kilden"); a.href = l.link; a.target = "_blank"; a.rel = "noopener"; acts.appendChild(a); }
     acts.appendChild(btn("Ikke denne", "sp-btn sp-btn-quiet", () => reject(n, l.source, card)));
     card.appendChild(acts);
@@ -845,6 +853,195 @@
     host.prepend(nav);
   }
 
+
+  /* ---------------- undersøk nærmere: bygg bevis før noe legges til ---------------- */
+  // A suggestion is only a lead. Here the reader sees what the tree knows next to
+  // what the source says, Spor looks for the same person in other censuses, and
+  // the reader answers what only the family knows. Adding is offered once the
+  // evidence reaches "Sannsynlig"; below that it can only be added marked uncertain.
+  let invReturnY = 0;
+  $("#inv-back").addEventListener("click", () => { show("relatives-view"); window.scrollTo(0, invReturnY); });
+
+  function candidateOf({ n, kind, item }) {
+    if (kind === "lead") return { rec: item.person, rel: "far", people: [["far", item.person]],
+      grand: [["farfar", item.father], ["farmor", item.mother]].filter(([, x]) => x), year: item.year, place: item.place, farm: item.farm, link: item.link };
+    if (kind === "family") return { rec: item.father || item.mother, rel: item.father && item.mother ? "foreldre" : item.father ? "far" : "mor",
+      people: [["far", item.father], ["mor", item.mother]].filter(([, x]) => x), grand: [], year: item.year, place: item.place, farm: item.farm, link: item.link };
+    const ev = item.evidence[0], rel = item.relation === "father" ? "far" : "mor";
+    return { rec: item, rel, people: [[rel, item]], grand: [], year: ev.year, place: ev.place, farm: "", link: ev.link, sameHouse: true };
+  }
+
+  const norm = s => (s || "").toLowerCase().normalize("NFKD").replace(/[^a-zæøå]/g, "");
+  const firstOf = x => ((x && (x.given_name || x.name)) || "").split(" ")[0];
+
+  async function investigate(inv) {
+    invReturnY = window.scrollY;
+    const { n } = inv, p = person(n), c = candidateOf(inv), rid = c.rec.record_id;
+    const store = ((p.investigations = p.investigations || {})[rid] = (p.investigations || {})[rid] || { answers: {}, sourceChecked: false });
+    show("investigate-view");
+    const host = $("#inv"); host.innerHTML = "";
+    const who = c.people.map(([, x]) => x.name).join(" og ");
+    host.appendChild(el("span", "sp-eyebrow sp-muted", "Undersøker et spor"));
+    host.appendChild(el("h1", "title", `Er ${who} ${c.rel === "foreldre" ? "foreldrene" : c.rel === "far" ? "faren" : "moren"} til ${first(p)}?`));
+    const meter = el("div", "inv-meter"); host.appendChild(meter);
+    const body = el("div", "inv-body"); host.appendChild(body);
+    body.appendChild(el("p", "muted", "Ser etter den samme personen i de andre folketellingene …"));
+
+    let data = { elsewhere: [], household: [] };
+    try {
+      const res = await fetch("/api/investigate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ record_id: rid }) });
+      if (res.ok) data = await res.json();
+    } catch { /* keep going with what we have */ }
+    body.innerHTML = "";
+
+    // 1. what the tree knows next to what the source says
+    const by = Number(p.birth_year), est = !!p.birth_year_estimated, rows = [];
+    const surnameHit = c.people.some(([, x]) => norm(x.surname || x.name).includes(norm(p.surname)) && norm(p.surname));
+    rows.push(["Navn", p.surname ? `${first(p)} heter ${p.surname}` : "Ukjent etternavn",
+      c.people.map(([, x]) => x.name).join(", "),
+      c.sameHouse ? ["ok", `${first(p)} står i samme husstand`] : surnameHit ? ["ok", "Samme navn"]
+        : inv.kind === "lead" && inv.item.why === "given" ? ["part", `${p.surname} kan komme av fornavnet hans`] : ["part", "Navnet kan være et gårdsnavn"]]);
+    const ages = c.people.map(([r, x]) => [r, x.birth_year ? by - x.birth_year : null]).filter(([, a]) => a != null);
+    const ageOk = ages.length && ages.every(([r, a]) => (r === "mor" ? a >= 18 && a <= 42 : a >= 20 && a <= 45));
+    rows.push(["Alder", `${first(p)} født ${bornText(p)}`, c.people.map(([r, x]) => `${r} født ${x.birth_year ?? "?"}`).join(", "),
+      !ages.length ? ["unknown", "Ukjent alder"] : ageOk ? (est ? ["part", "Passer, men året er et anslag"] : ["ok", `${ages.map(([, a]) => a).join(" og ")} år eldre`])
+        : ["part", `${ages.map(([, a]) => a).join(" og ")} år eldre, uvanlig`]]);
+    const known = p.birthplace || birthplaceNear(n);
+    const placeHit = known && (norm(c.place).includes(norm(known)) || norm(known).includes(norm(c.place)));
+    rows.push(["Sted", known ? `${p.birthplace ? "Født" : "Slekta fra"} ${known}` : "Ukjent", [c.farm, c.place].filter(Boolean).join(", ") + ` (${c.year})` + (c.rec.birthplace && norm(c.rec.birthplace) !== norm(c.place) ? `, født ${c.rec.birthplace}` : ""),
+      !known ? ["unknown", "Vi vet ikke hvor familien bodde"] : placeHit ? ["ok", "Samme sted"] : ["part", "Annet sted, folk flyttet"]]);
+    const same = data.elsewhere.filter(e => e.same_family);
+    rows.push(["Andre tellinger", "", same.length ? same.map(e => `${e.year}: ${e.name}, ${e.place}`).join("; ") : "Ikke funnet med samme familie",
+      same.length ? ["ok", `Samme familie i ${same.map(e => e.year).join(" og ")}`] : ["unknown", "Ingen bekreftelse fra andre år"]]);
+
+    const sec1 = section(body, "Det treet vet, og det kilden sier");
+    const t = el("table", "evidence");
+    t.innerHTML = "<thead><tr><th></th><th>Treet ditt</th><th>Kilden</th><th>Vurdering</th></tr></thead>";
+    const tb = el("tbody");
+    const MARK = { ok: "✓", part: "≈", unknown: "?", no: "✗" };
+    rows.forEach(([k, a, b, [st, why]]) => {
+      const tr = el("tr"); tr.appendChild(el("th", null, k)); tr.appendChild(el("td", null, a)); tr.appendChild(el("td", null, b));
+      const td = el("td", "ev-" + st); td.appendChild(el("span", "ev-mark", MARK[st])); td.append(" " + why); tr.appendChild(td); tb.appendChild(tr);
+    });
+    t.appendChild(tb); sec1.appendChild(t);
+
+    // 2. what only the family knows
+    const qs = [];
+    if (inv.kind === "lead") {
+      qs.push(["fname", `Het faren til ${first(p)} ${firstOf(c.rec)}?`]);
+      c.grand.forEach(([r, x]) => qs.push([r, `Het ${gen_s(first(p))} ${r} ${firstOf(x)}?`]));
+    } else if (inv.kind === "family") {
+      qs.push(["names", `Het foreldrene til ${first(p)} ${c.people.map(([, x]) => firstOf(x)).join(" og ")}?`]);
+    } else qs.push(["name", `Het ${c.rel === "far" ? "faren" : "moren"} til ${first(p)} ${firstOf(c.rec)}?`]);
+    if (c.place) qs.push(["place", `Har familien røtter i ${c.place}${c.farm ? ` eller på ${c.farm}` : ""}?`]);
+    const sec2 = section(body, "Det bare du eller familien vet");
+    sec2.appendChild(el("p", "muted", "Svar bare på det du vet. Spør gjerne eldre slektninger. Hvert ja styrker sporet, et nei stopper det."));
+    qs.forEach(([id, q]) => {
+      const row = el("div", "inv-q"); row.appendChild(el("p", null, q));
+      const acts = el("div", "seg");
+      [["yes", "Ja"], ["no", "Nei"], ["unknown", "Vet ikke"]].forEach(([v, label]) => {
+        const b = btn(label, "seg-btn" + (store.answers[id] === v ? " on" : ""), () => { store.answers[id] = v; save(); acts.querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); update(); });
+        b.setAttribute("aria-pressed", String(store.answers[id] === v)); acts.appendChild(b);
+      });
+      row.appendChild(acts); sec2.appendChild(row);
+    });
+
+    // 3. the source itself
+    const sec3 = section(body, "Les kilden selv");
+    sec3.appendChild(el("p", "muted", `Folketellingen ${c.year}, ${[c.farm, c.place].filter(Boolean).join(", ")}. Se om navn, alder og fødested er lest riktig, og hvem andre som bor der.`));
+    if (data.household.length) {
+      const ht = el("table"); ht.innerHTML = "<thead><tr><th>Navn</th><th>Født</th><th>Oppført som</th><th>Fødested</th></tr></thead>";
+      const hb = el("tbody");
+      data.household.forEach(h => { const tr = el("tr", c.people.some(([, x]) => x.record_id === h.record_id) ? "me" : null);
+        [h.name, h.birth_year ?? "?", roleText(h.role), h.birthplace || ""].forEach(v => tr.appendChild(el("td", null, v))); hb.appendChild(tr); });
+      ht.appendChild(hb); sec3.appendChild(ht);
+    }
+    const srcRow = el("div", "sp-actions");
+    if (c.link) { const a = el("a", "sp-btn", "Åpne kilden ↗"); a.href = c.link; a.target = "_blank"; a.rel = "noopener"; srcRow.appendChild(a); }
+    sec3.appendChild(srcRow);
+    const chk = el("label", "inv-check"); const box = el("input"); box.type = "checkbox"; box.checked = store.sourceChecked;
+    box.addEventListener("change", () => { store.sourceChecked = box.checked; save(); update(); });
+    chk.append(box, " Jeg har lest oppføringen i kilden selv, og den stemmer"); sec3.appendChild(chk);
+
+    // 4. decision
+    const dec = el("div", "inv-decide"); body.appendChild(dec);
+    // research log
+    if ((p.research || []).length) {
+      const sec5 = section(body, `Notater om ${first(p)}`);
+      const ul = el("ul", "inv-log"); p.research.slice(-8).reverse().forEach(r => ul.appendChild(el("li", null, `${r.date}: ${r.text}`))); sec5.appendChild(ul);
+    }
+
+    function level() {
+      const a = Object.values(store.answers);
+      if (a.includes("no")) return ["conflict", 0];
+      let pts = 0;
+      rows.forEach(([, , , [st]]) => { pts += st === "ok" ? 1 : st === "part" ? 0.5 : 0; });
+      if (same.length) pts += 1;   // the census row already gave 1
+      const yes = a.filter(v => v === "yes").length;
+      pts += 2 * yes + (store.sourceChecked ? 1 : 0);
+      const independent = yes > 0 || same.length > 0;
+      if (independent && store.sourceChecked && pts >= 7) return ["confirmed", pts];
+      if (independent && pts >= 4.5) return ["probable", pts];
+      return ["unverified", pts];
+    }
+    function missing(lv) {
+      const out = [];
+      if (lv === "conflict") return ["Du har svart nei på noe. Da er dette trolig ikke riktig familie."];
+      if (!same.length && !Object.values(store.answers).includes("yes")) out.push("Noe uavhengig som bekrefter sporet: et ja på et spørsmål over, eller samme familie i en annen folketelling.");
+      if (!store.sourceChecked) out.push("Les oppføringen i kilden selv.");
+      return out;
+    }
+    function update() {
+      const [lv] = level();
+      const word = { confirmed: "Bekreftet", probable: "Sannsynlig", unverified: "Ubekreftet", conflict: "Motstridende kilder" }[lv];
+      const step = { conflict: 0, unverified: 1, probable: 2, confirmed: 3 }[lv];
+      meter.innerHTML = "";
+      meter.appendChild(badge(lv));
+      const bar = el("div", "inv-bar"); for (let i = 1; i <= 3; i++) bar.appendChild(el("span", i <= step ? "on" : null)); meter.appendChild(bar);
+      meter.appendChild(el("p", "muted", lv === "confirmed" ? "Sterke bevis fra flere kanter. Trygt å legge til."
+        : lv === "probable" ? (store.sourceChecked ? "Godt nok til å legge til. Ett ja til, eller samme familie i en annen telling, gjør det bekreftet." : "Godt nok til å legge til. Les kilden selv for å bekrefte.")
+        : lv === "conflict" ? "Noe stemmer ikke." : "Ikke nok ennå til å legge til i treet."));
+      dec.innerHTML = "";
+      dec.appendChild(el("h2", null, "Din beslutning"));
+      const acts = el("div", "sp-actions");
+      const ready = lv === "confirmed" || lv === "probable";
+      if (ready) {
+        if (inv.kind === "lead" && c.grand.length) {
+          acts.appendChild(btn("Legg til far og besteforeldre", "sp-btn sp-btn-primary", () => commit(lv, { grand: true })));
+          acts.appendChild(btn("Bare faren", "sp-btn", () => commit(lv, {})));
+        } else acts.appendChild(btn("Legg til i treet", "sp-btn sp-btn-primary", () => commit(lv, {})));
+      } else {
+        const ul = el("ul", "inv-missing"); missing(lv).forEach(m => ul.appendChild(el("li", null, m)));
+        dec.appendChild(el("p", null, lv === "conflict" ? "Dette sporet stopper her." : "Før du legger til trenger vi:")); dec.appendChild(ul);
+        if (lv !== "conflict") acts.appendChild(btn("Legg til likevel, merket som usikker", "sp-btn sp-btn-quiet", () => commit(lv, { uncertain: true })));
+      }
+      acts.appendChild(btn("Ikke denne", "sp-btn " + (lv === "conflict" ? "sp-btn-primary" : "sp-btn-quiet"), () => {
+        log(p, `Avviste ${who} (${c.year}, ${c.place})${lv === "conflict" ? ": svarte nei på et spørsmål" : ""}.`);
+        reject(n, rid, inv.card); show("relatives-view"); window.scrollTo(0, invReturnY);
+      }));
+      dec.appendChild(acts);
+    }
+    function commit(lv, opt) {
+      if (inv.kind === "lead") addLead(n, inv.item, inv.card, !!opt.grand);
+      else if (inv.kind === "family") addFamily(n, inv.item, inv.card);
+      else addParent(n, inv.item, inv.card);
+      const conf = lv === "confirmed" ? "high" : lv === "probable" ? "medium" : "low";
+      const slots = inv.kind === "lead" ? [2 * n, ...(opt.grand ? [4 * n, 4 * n + 1] : [])]
+        : inv.kind === "family" ? [2 * n, 2 * n + 1] : [inv.item.relation === "father" ? 2 * n : 2 * n + 1];
+      slots.forEach(sl => { const x = person(sl); if (!x) return; Object.values(x.kept || {}).forEach(k => { k.confidence = conf; });
+        if (opt.uncertain) x.uncertain = true; else delete x.uncertain; });
+      const yes = Object.entries(store.answers).filter(([, v]) => v === "yes").length;
+      log(p, `La til ${who} som ${c.rel} (${c.year}, ${c.place}). ${{ confirmed: "Bekreftet", probable: "Sannsynlig", unverified: "Usikker" }[lv] || "Usikker"}: ` +
+        [same.length && `samme familie i ${same.map(e => e.year).join(", ")}`, yes && `${yes} ja fra deg`, store.sourceChecked && "kilden lest"].filter(Boolean).join(", ") + ".");
+      save(); renderTree();
+      show("relatives-view"); window.scrollTo(0, invReturnY);
+    }
+    update();
+  }
+
+  function section(parent, title) { const s = el("section", "inv-sec"); s.appendChild(el("h2", null, title)); parent.appendChild(s); return s; }
+  function log(p, text) { (p.research = p.research || []).push({ date: new Date().toISOString().slice(0, 10), text }); save(); }
+
   function elsewhereCard(n) {
     const p = person(n), by = Number(p.birth_year) || null, dk = danishPlace(n), items = [];
     if (dk) items.push(["Danske kilder", `${dk} ligger i Danmark, så ${p.birthplace === dk ? first(p) : "familien"} står trolig i danske kirkebøker og folketellinger. De er gratis å søke i hos Danish Family Search. Treff i norske kilder er derfor mindre sannsynlige.`,
@@ -922,10 +1119,10 @@
     body.appendChild(el("div", "sp-scan", "«" + [sg.name, sg.role, sg.birth_year, sg.birthplace].filter(v => v != null && v !== "").join(", ") + "»"));
     body.appendChild(el("div", "sp-source", ev.source));
     const acts = el("div", "sp-actions");
-    const add = btn("Legg til i treet", featured ? "sp-btn sp-btn-primary" : "sp-btn", () => addParent(n, sg, card));
+    const add = btn("Undersøk nærmere", featured ? "sp-btn sp-btn-primary" : "sp-btn", () => investigate({ n, kind: "relative", item: sg, card }));
     acts.appendChild(add);
     if (ev.link) { const a = el("a", "sp-btn", "Se kilden"); a.href = ev.link; a.target = "_blank"; a.rel = "noopener"; acts.appendChild(a); }
-    acts.appendChild(btn("Ikke denne", "sp-btn sp-btn-quiet", () => { card.classList.add("aside"); }));
+    acts.appendChild(btn("Ikke denne", "sp-btn sp-btn-quiet", () => reject(n, sg.record_id, card)));
     body.appendChild(acts);
     if (featured) card.append(head, body); else card.prepend(head);
     return card;
