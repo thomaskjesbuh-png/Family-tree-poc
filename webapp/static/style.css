@@ -160,3 +160,51 @@ tr.me td { font-weight: 600; color: var(--moss); }
   .row.three { flex-wrap: wrap; }
   .row.three > label { flex: 1 1 40%; }
 }
+
+/* ---------- start with you ---------- */
+.start { max-width: 1180px; margin: 0 auto; padding: 40px 16px 80px; }
+.start-inner { max-width: 620px; margin: 0 auto; text-align: left; }
+.start .drawing { margin: 0 auto 24px; }
+.start h1 { font-size: 40px; }
+.start .lede { font-size: 17px; margin: 12px 0 28px; }
+.start-form .actions { margin-top: 10px; }
+@media (max-width: 560px) { .start h1 { font-size: 32px; } }
+
+/* ---------- the tree ---------- */
+.tree-wrap { max-width: 1180px; margin: 0 auto; padding: 32px 16px 80px; }
+.tree-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 24px; }
+.tree-head h1 { font-size: 32px; }
+.tree-head .lede { margin: 8px 0 0; }
+.tree-scroll { overflow-x: auto; padding-bottom: 8px; }
+.tree { display: flex; gap: 20px; align-items: flex-start; width: max-content; min-width: 100%; }
+.gen { width: 232px; flex: none; display: flex; flex-direction: column; gap: 12px; }
+.gen h2 { font: 600 12px var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--moss);
+  padding-bottom: 8px; border-bottom: 1px solid var(--rule); margin-bottom: 4px; }
+.pcard { background: var(--paper); border: 1px solid var(--rule); border-radius: 4px; padding: 14px 14px 12px; }
+.pcard .rel { margin: 0; font-size: 12px; color: var(--slate-faint); }
+.pcard h3 { font-size: 20px; margin: 2px 0 2px; overflow-wrap: anywhere; }
+.pcard .yrs { margin: 0; font-size: 13px; color: var(--slate-soft); }
+.pcard .state { margin: 8px 0 10px; font-size: 13px; display: flex; align-items: center; gap: 6px; }
+.pcard .state::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: none; }
+.muted-state { color: var(--slate-faint); }
+.ready-state { color: var(--amber-deep); }
+.kept-state { color: var(--moss); font-weight: 600; }
+.pacts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.pacts .small { font-size: 13px; padding: 6px 12px; }
+.slot { border: 1px dashed var(--rule); border-radius: 4px; background: transparent; color: var(--slate-soft);
+  text-align: left; padding: 12px 14px; font-size: 14px; }
+.slot:hover { border-color: var(--moss); color: var(--moss); }
+.tree-foot { margin-top: 20px; }
+@media (max-width: 560px) { .tree-head h1 { font-size: 26px; } .gen { width: 210px; } }
+
+/* ---------- following a trail ---------- */
+.back { padding-left: 0; margin-bottom: 14px; font-size: 14px; }
+#search-h { font-size: 30px; }
+
+/* ---------- person editor ---------- */
+.editor { border: 1px solid var(--rule); border-radius: 6px; background: var(--paper); color: var(--slate);
+  padding: 24px; width: min(480px, calc(100vw - 32px)); }
+.editor::backdrop { background: rgba(28, 36, 42, .35); }
+.editor h2 { font-size: 24px; margin-bottom: 16px; }
+.editor .actions { margin-top: 12px; }
+.danger { color: #A4462E; }

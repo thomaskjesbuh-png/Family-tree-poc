@@ -15,8 +15,8 @@ def client():
 
 def test_index_shows_prototype_notice(client):
     html = client.get("/").get_data(as_text=True)
-    assert "Prototype." in html and "invented; none of these people lived" in html
-    assert "Whose story shall we follow?" in html
+    assert "Prototype." in html and "none of these people lived" in html
+    assert "Every story starts with you" in html and "Following the trail of" in html
 
 
 def test_search_finds_the_demo_ancestor_in_three_censuses(client):

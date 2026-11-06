@@ -170,7 +170,14 @@ python -m webapp                                   # invented example family, ht
 python -m webapp --records data/real/records.csv   # imported census data (~20 s to start)
 ```
 
-The customer enters what they know about an ancestor and gets ranked census
+The customer starts with themselves, then adds parents, grandparents and so
+on; the tree grows backwards one generation per column and is kept in the
+browser only. People born after the 100-year limit are "living memory" and are
+never searched. For anyone born earlier, "Follow the trail" opens a census
+search prefilled from the tree: name, birth year, birthplace, sex, both parents
+and the spouse (the other parent of their child), so the strongest clues come
+for free. Records kept are attached to that person, and each person can be
+read as a printable chapter. For each search the customer gets ranked census
 records. Each card shows the confidence, the reason behind every part of the
 score, the people listed at the same place, and a link to the page in the
 archive's booklet. The customer marks each record "This is them" or "Not them"
