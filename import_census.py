@@ -12,12 +12,12 @@ from __future__ import annotations
 
 import argparse
 import csv
-import shutil
 import sys
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import fields
 from pathlib import Path
 
-from ancestor_finder.importers.booklets import COUNTY_NAME, parse_booklet
+from ancestor_finder.importers.booklets import COUNTY_NAME, parse_booklet, pdf_reader
 from ancestor_finder.importers.ft1801 import parse_1801
 from ancestor_finder.models import Record, cutoff_year
 
@@ -31,10 +31,15 @@ def main(argv=None) -> int:
     ap.add_argument("--out", type=Path, default=Path("data/real/records.csv"))
     args = ap.parse_args(argv)
 
-    if not shutil.which("pdftotext"):
-        print("pdftotext is missing; it reads the census booklets.\n"
-              "  Mac:   brew install poppler\n  Linux: apt install poppler-utils", file=sys.stderr)
+    reader = pdf_reader()
+    if not reader:
+        print("No PDF reader for the census booklets. Install one:\n"
+              "  python3 -m pip install pypdf      (any computer)\n"
+              "  brew install poppler              (Mac, faster)\n"
+              "  apt install poppler-utils         (Linux, faster)", file=sys.stderr)
         return 1
+    if reader == "pypdf":
+        print("Reading booklets with pypdf (slower than pdftotext; uses all processor cores).")
     records: list[Record] = []
     counties = args.counties or sorted({p.name for p in args.raw.glob("[0-9]*/*") if p.is_dir()})
     for year in args.years:
@@ -57,11 +62,12 @@ def main(argv=None) -> int:
             if not files:
                 continue
             total = 0
-            for f in files:
-                recs = parse_booklet(f, year, county)
-                total += len(recs)
-                records += recs
-            print(f"{year} {county}: {len(files)} booklets, {total} persons")
+            with ProcessPoolExecutor() as pool:
+                for i, recs in enumerate(pool.map(parse_booklet, files, [year] * len(files), [county] * len(files)), 1):
+                    total += len(recs)
+                    records += recs
+                    print(f"  [{i}/{len(files)}] {year} {county}", end="\r", flush=True)
+            print(f"\r{year} {county}: {len(files)} booklets, {total} persons      ")
 
     if not records:
         print(f"No census files found under {args.raw}/, so {args.out} was left as it was.\n"

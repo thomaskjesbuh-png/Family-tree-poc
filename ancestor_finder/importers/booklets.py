@@ -14,6 +14,7 @@ from occupation and to attach wrapped name lines.
 from __future__ import annotations
 
 import re
+import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -70,10 +71,28 @@ class _Person:
     dwelling: str
 
 
+def pdf_reader() -> str | None:
+    """Which PDF reader is available: "pdftotext" (poppler, fast), "pypdf"
+    (pure Python, about 7x slower, ~98% identical records), or None."""
+    if shutil.which("pdftotext"):
+        return "pdftotext"
+    try:
+        import pypdf  # noqa: F401
+        return "pypdf"
+    except ImportError:
+        return None
+
+
 def pdf_to_pages(pdf: Path) -> list[str]:
-    out = subprocess.run(["pdftotext", "-layout", str(pdf), "-"], check=True,
-                         capture_output=True).stdout.decode("utf-8", errors="replace")
-    return out.split("\f")
+    reader = pdf_reader()
+    if reader == "pdftotext":
+        out = subprocess.run(["pdftotext", "-layout", str(pdf), "-"], check=True,
+                             capture_output=True).stdout.decode("utf-8", errors="replace")
+        return out.split("\f")
+    if reader == "pypdf":
+        import pypdf
+        return [page.extract_text(extraction_mode="layout") for page in pypdf.PdfReader(str(pdf)).pages]
+    raise RuntimeError("No PDF reader: install pypdf (pip install pypdf) or poppler's pdftotext.")
 
 
 def _header_cols(line: str) -> _Cols:

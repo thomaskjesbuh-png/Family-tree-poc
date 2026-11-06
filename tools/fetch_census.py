@@ -34,12 +34,23 @@ def ft1801_name(county_dir: str) -> str:
 limiter = RateLimiter(1.0)
 
 
+def _ssl_context():
+    """Use certifi's certificates when installed: Python from python.org on a
+    Mac has none of its own until 'Install Certificates.command' is run."""
+    import ssl
+    try:
+        import certifi
+        return ssl.create_default_context(cafile=certifi.where())
+    except ImportError:
+        return ssl.create_default_context()
+
+
 def get(url: str) -> bytes:
     if not url.startswith("https://xml.arkivverket.no/"):
         raise ValueError(f"refusing to fetch outside xml.arkivverket.no: {url}")
     limiter.wait()
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(req, timeout=120) as r:
+    with urllib.request.urlopen(req, timeout=120, context=_ssl_context()) as r:
         return r.read()
 
 
@@ -83,6 +94,6 @@ if __name__ == "__main__":
     except urllib.error.URLError as e:
         msg = f"Download failed: {e.reason}"
         if "CERTIFICATE_VERIFY_FAILED" in str(e.reason):
-            msg += ("\nPython can't check the site's certificate. On a Mac with Python from python.org, run\n"
-                    "'Install Certificates.command' in the Python folder under Applications, then try again.")
+            msg += ("\nPython can't check the site's certificate. Run  python3 -m pip install certifi  and try again\n"
+                    "(or 'Install Certificates.command' in the Python folder under Applications).")
         sys.exit(msg)
