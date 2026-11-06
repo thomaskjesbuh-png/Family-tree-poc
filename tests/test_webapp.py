@@ -55,3 +55,33 @@ def test_app_name_is_configurable(monkeypatch):
     monkeypatch.setenv("AF_APP_NAME", "Slektspor")
     html = create_app().test_client().get("/").get_data(as_text=True)
     assert "<title>Slektspor</title>" in html
+
+
+def test_relatives_from_a_strong_match(client):
+    person = {"given_name": "Ole Andreas", "surname": "Larsen", "birth_year": "1851", "birthplace": "Rakkestad",
+              "sex": "m", "spouse_name": "Marte Kristine"}
+    data = client.post("/api/relatives", json={"person": person}).get_json()
+    names = {(s["relation"], s["name"], s["birth_year"]) for s in data["suggestions"]}
+    assert ("father", "Lars Olsen", 1822) in names and ("mother", "Berte Hansdatter", 1826) in names
+    father = next(s for s in data["suggestions"] if s["relation"] == "father")
+    assert father["record_id"] and father["evidence"][0]["year"] == 1865 and father["role"] == "Husfader"
+    # the namesake next door has another Lars Olsen as father: shown as a rival, not hidden
+    fathers = [s for s in data["suggestions"] if s["relation"] == "father"]
+    assert len(fathers) == 2 and all(s["rivals"] == 1 and s["confidence"] == "medium" for s in fathers)
+
+
+def test_relatives_prefers_kept_records_and_skips_the_living(client):
+    person = {"given_name": "Kristian", "surname": "Olsen", "birth_year": "1886", "birthplace": "Rakkestad"}
+    kept = client.post("/api/search", json=person).get_json()["candidates"][0]["record_id"]
+    data = client.post("/api/relatives", json={"person": person, "kept": [kept]}).get_json()
+    assert data["basis"] == "kept" and all(e["how"] == "kept" for s in data["suggestions"] for e in s["evidence"])
+    living = client.post("/api/relatives", json={"person": {"given_name": "Dorthe", "birth_year": "1955"}}).get_json()
+    assert living == {"suggestions": [], "basis": "living"}
+
+
+def test_relatives_merges_spellings_of_one_parent(client):
+    person = {"given_name": "Kristian", "surname": "Olsen", "birth_year": "1886", "birthplace": "Rakkestad", "sex": "m"}
+    data = client.post("/api/relatives", json={"person": person}).get_json()
+    mothers = [s for s in data["suggestions"] if s["relation"] == "mother"]
+    assert len(mothers) == 1 and mothers[0]["rivals"] == 0 and len(mothers[0]["evidence"]) == 2
+    assert mothers[0]["also_written"]

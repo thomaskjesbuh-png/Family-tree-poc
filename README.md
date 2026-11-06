@@ -177,8 +177,15 @@ never searched. For anyone born earlier, "Follow the trail" opens a census
 search prefilled from the tree: name, birth year, birthplace, sex, both parents
 and the spouse (the other parent of their child), so the strongest clues come
 for free. Records kept are attached to that person, and each person can be
-read as a printable chapter. For each search the customer gets ranked census
-records. Each card shows the confidence, the reason behind every part of the
+read as a printable chapter. When the customer has added everyone they know, "Let etter slektninger"
+looks for the parents of everyone in the tree who is old enough for the
+censuses and is missing a father or mother. It reads them from the census
+household (records the customer already added first, otherwise strong and
+possible matches), merges different spellings of the same parent across
+censuses, and flags competing families when namesakes fit equally well. Each
+suggestion can be added to the tree with the record as its source; running it
+again goes one generation further. For each search the customer gets ranked
+census records. Each card shows the confidence, the reason behind every part of the
 score, the people listed at the same place, and a link to the page in the
 archive's booklet. The customer marks each record "This is them" or "Not them"
 (saved in their browser), then creates a printable report with source

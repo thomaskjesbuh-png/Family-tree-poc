@@ -20,6 +20,7 @@ from flask import Flask, abort, jsonify, render_template, request
 
 from ancestor_finder.cache import Cache
 from ancestor_finder.models import PersonQuery, Record, cutoff_year
+from ancestor_finder.names import canonical_given
 from ancestor_finder.pipeline import PrivacyError, find
 from ancestor_finder.sources import LocalFileSource
 
@@ -123,6 +124,80 @@ def create_app(records_path: Path | str | None = None) -> Flask:
         return jsonify({"query": {k: getattr(q, k) for k in QUERY_FIELDS},
                         "total": len(res.candidates), "shown": len(out), "candidates": out,
                         "warnings": res.warnings, "model_checks_used": res.llm_used})
+
+    @app.post("/api/relatives")
+    def api_relatives():
+        """Suggest a person's parents from their census household.
+
+        Uses the records the user already added for this person; otherwise only
+        strong (high) matches. Parents are read from the household position, so
+        every suggestion is a lead to confirm, never a stated fact.
+        """
+        data = request.get_json(silent=True) or {}
+        try:
+            q = _parse_query(data.get("person") or {})
+        except ValueError as e:
+            return jsonify({"error": str(e), "kind": "input"}), 400
+        if q.birth_year and q.birth_year > cutoff_year():
+            return jsonify({"suggestions": [], "basis": "living"})
+
+        bases = []   # (record, how, confidence)
+        for rid in data.get("kept") or []:
+            r = source.get(str(rid))
+            if r is not None:
+                bases.append((r, "kept", "high"))
+        if not bases:
+            try:
+                res = find(q, source, helper=helper)
+            except PrivacyError:
+                return jsonify({"suggestions": [], "basis": "living"})
+            # strong and possible matches; a parent found only through a possible
+            # match is shown as unconfirmed, and rival families are flagged
+            bases = [(c.record, "match", c.confidence) for c in res.candidates
+                     if c.confidence in ("high", "medium")][:5]
+
+        found: dict[tuple, dict] = {}
+        for r, how, conf in bases:
+            house = source.household(r.record_id)
+            for relation, pname in (("father", r.father_name), ("mother", r.mother_name)):
+                if not pname:
+                    continue
+                prec = next((h for h in house if h.full_name == pname), None)
+                given = prec.given_name if prec else " ".join(pname.split()[:-1]) or pname
+                surname = prec.surname if prec else (pname.split()[-1] if len(pname.split()) > 1 else "")
+                by = prec.birth_year if prec else None
+                # the same parent is often spelled differently in two censuses
+                # ("Marte Kristine Larsen" / "Marte Kristine Lars."): merge on the
+                # first name and a birth year within a year
+                key = next((k for k in found if k[0] == relation and k[1] == canonical_given(pname)
+                            and (k[2] is None or by is None or abs(k[2] - by) <= 1)),
+                           (relation, canonical_given(pname), by))
+                if key in found and pname != found[key]["name"] and pname not in found[key]["also_written"]:
+                    found[key]["also_written"].append(pname)
+                s = found.setdefault(key, {
+                    "relation": relation, "name": pname, "given_name": given, "surname": surname,
+                    "birth_year": prec.birth_year if prec else None,
+                    "birthplace": prec.birthplace if prec else "",
+                    "role": prec.role if prec else "", "record_id": prec.record_id if prec else None,
+                    "also_written": [], "evidence": []})
+                s["evidence"].append({
+                    "how": how, "confidence": conf, "child_record_id": r.record_id, "year": r.year,
+                    "child_name": r.full_name, "child_role": r.role,
+                    "place": ", ".join(x for x in (r.farm, r.municipality or r.parish) if x),
+                    "source": f"{r.source} · {r.record_id}", "link": _source_link(r)})
+        for sgg in found.values():
+            sgg["confidence"] = "high" if any(e["how"] == "kept" or e["confidence"] == "high"
+                                              for e in sgg["evidence"]) else "medium"
+        per_relation: dict[str, int] = {}
+        for sgg in found.values():
+            per_relation[sgg["relation"]] = per_relation.get(sgg["relation"], 0) + 1
+        for sgg in found.values():
+            sgg["rivals"] = per_relation[sgg["relation"]] - 1
+        suggestions = sorted(found.values(), key=lambda s: (
+            0 if any(e["how"] == "kept" for e in s["evidence"]) else 1, s["confidence"] != "high",
+            s["relation"], -len(s["evidence"])))
+        return jsonify({"suggestions": suggestions,
+                        "basis": "kept" if any(h == "kept" for _, h, _ in bases) else ("match" if bases else "none")})
 
     @app.post("/report")
     def report():

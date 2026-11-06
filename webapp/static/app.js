@@ -67,7 +67,7 @@
   const CHECK = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="6.25"/><path d="M5.3 8.2l1.8 1.8 3.6-3.8"/></svg>';
 
   /* ---------------- visninger ---------------- */
-  function show(view) { for (const id of ["start-view", "tree-view", "search-view"]) $("#" + id).hidden = id !== view; window.scrollTo(0, 0); }
+  function show(view) { for (const id of ["start-view", "tree-view", "search-view", "relatives-view"]) $("#" + id).hidden = id !== view; window.scrollTo(0, 0); }
   function route() {
     if (!person(1)) { show("start-view"); return; }
     if (!person(focus)) focus = 1;
@@ -174,6 +174,7 @@
 
     const acts = el("div", "sp-actions");
     if (traceable(p)) acts.appendChild(btn(kept.length ? "Let videre" : "Følg sporet", "sp-btn sp-btn-primary", () => openTrail(n)));
+    if (traceable(p) && (!f || !m)) acts.appendChild(btn("Let etter foreldrene", "sp-btn", () => findRelatives([n])));
     if (!f) acts.appendChild(btn("Legg til far", "sp-btn", () => edit(2 * n)));
     if (!m) acts.appendChild(btn("Legg til mor", "sp-btn", () => edit(2 * n + 1)));
     acts.appendChild(btn("Endre", "sp-btn", () => edit(n)));
@@ -467,6 +468,110 @@
     if (has(/^record lists none of the queried family/)) return "Passer, men nevner ingen fra familien i treet ditt.";
     if (x.explanation.find(p => p.name === "family" && p.score >= 0.9)) return "Navn, fødselsår og familie stemmer.";
     return "Navn, fødselsår og sted stemmer.";
+  }
+
+  /* ---------------- nye spor i slekta: foreldre fra husstanden ---------------- */
+  const gen_s = name => (/[sxz]$/i.test(name) ? `${name}'` : `${name}s`);   // Norsk genitiv: Oles, Hans'
+  const missingParents = n => !person(2 * n) || !person(2 * n + 1);
+  const seekers = () => Object.keys(tree).map(Number)
+    .filter(n => traceable(person(n)) && missingParents(n))
+    .sort((a, b) => gen(b) - gen(a) || a - b);
+
+  $("#find-relatives").addEventListener("click", () => findRelatives(seekers()));
+  $("#rel-back").addEventListener("click", () => route());
+
+  async function findRelatives(list) {
+    show("relatives-view");
+    const host = $("#rel-results"), prog = $("#rel-progress");
+    host.innerHTML = ""; prog.textContent = "";
+    if (!list.length) { host.appendChild(noSeekers()); return; }
+    list = list.slice(0, 8);
+    let any = false;
+    for (const [i, n] of list.entries()) {
+      const p = person(n);
+      prog.textContent = `Leter etter foreldrene til ${fullName(p)} (${i + 1} av ${list.length}) …`;
+      let data;
+      try {
+        const res = await fetch("/api/relatives", { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ person: queryFor(n), kept: keptOf(p).map(([id]) => id) }) });
+        data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+      } catch { data = { suggestions: [] }; }
+      const sugg = data.suggestions.filter(sg => (sg.relation === "father" ? !person(2 * n) : !person(2 * n + 1)));
+      const group = el("section", "rel-group");
+      group.appendChild(el("h2", null, `Foreldrene til ${fullName(p)}`));
+      if (!sugg.length) group.appendChild(el("p", "muted", `Ingen nye spor etter foreldrene til ${first(p)}, foreløpig. Følg sporet til ${first(p)} for å se alle treffene.`));
+      sugg.forEach((sg, j) => group.appendChild(relativeCard(n, sg, !any && j === 0 && sg.confidence === "high")));
+      if (sugg.length) any = true;
+      host.appendChild(group);
+    }
+    prog.textContent = any ? "Ferdig. Legg til dem som stemmer, og let igjen for neste generasjon." : "Ferdig. Ingen nye spor denne gangen.";
+  }
+
+  function noSeekers() {
+    const box = el("div", "sp-empty");
+    const a = el("div", "sp-art"); a.appendChild(art("art-route")); box.appendChild(a);
+    const anyTraceable = Object.values(tree).some(traceable);
+    if (anyTraceable) {
+      box.appendChild(el("h3", null, "Alle som kan spores, har foreldre i treet"));
+      box.appendChild(el("p", "sp-muted", "Legg til flere personer bakover, eller følg sporet til noen for å finne flere kilder."));
+    } else {
+      box.appendChild(el("h3", null, "Treet ditt når ikke folketellingene ennå"));
+      box.appendChild(el("p", "sp-muted", `Vi kan bare lete etter personer født i ${CUTOFF} eller tidligere, i folketellingene for ${S.coverage.counties.join(", ")}. ` +
+        "Legg til den eldste du vet om, gjerne en besteforelder eller oldeforelder, så leter vi videre derfra."));
+    }
+    const acts = el("div", "sp-actions");
+    acts.appendChild(btn("Tilbake til treet", "sp-btn sp-btn-primary", () => route()));
+    box.appendChild(acts);
+    return box;
+  }
+
+  function relativeCard(n, sg, featured) {
+    const child = person(n), ev = sg.evidence[0], isFather = sg.relation === "father";
+    const word = isFather ? "far" : "mor";
+    const card = el("article", (featured ? "sp-find" : "sp-card") + " rel-card");
+    const head = el("div", featured ? "sp-find-head" : "rel-head");
+    head.appendChild(el("span", "sp-eyebrow" + (featured ? "" : " sp-muted"), "Nytt spor"));
+    const bw = el("span"); if (featured) bw.style.marginLeft = "auto";
+    bw.appendChild(badge(sg.confidence === "high" ? "probable" : "unverified")); head.appendChild(bw);
+    const body = featured ? el("div", "sp-find-body") : card;
+    body.appendChild(el("h3", "sp-find-title", `Kanskje ${gen_s(first(child))} ${word}: ${sg.name}`));
+    const born = sg.birth_year ? `, født ${sg.birth_year}${sg.birthplace ? " i " + sg.birthplace : ""}` : "";
+    let story = `I folketellingen ${ev.year} bor ${first(child)} på ${ev.place || "et oppført sted"}, sammen med ${sg.name}${born}. ` +
+      `Husstanden tyder på at ${isFather ? "han er faren" : "hun er moren"} til ${first(child)}.`;
+    if (sg.evidence.length > 1) story += ` ${isFather ? "Han" : "Hun"} står sammen med ${first(child)} i ${sg.evidence.length} folketellinger (${sg.evidence.map(e => e.year).join(" og ")}).`;
+    if (sg.also_written && sg.also_written.length) story += ` Navnet er også skrevet ${sg.also_written.map(v => "«" + v + "»").join(", ")}.`;
+    if (ev.how === "kept") story += ` Posten er en du allerede har lagt til.`;
+    if (sg.rivals) story += ` Det finnes ${sg.rivals + 1} mulige ${isFather ? "fedre" : "mødre"} i kildene, fordi flere med samme navn passer. Velg den som stemmer med det du vet.`;
+    body.appendChild(el("p", "sp-find-story", story));
+    body.appendChild(el("div", "sp-scan", "«" + [sg.name, sg.role, sg.birth_year, sg.birthplace].filter(v => v != null && v !== "").join(", ") + "»"));
+    body.appendChild(el("div", "sp-source", ev.source));
+    const acts = el("div", "sp-actions");
+    const add = btn("Legg til i treet", featured ? "sp-btn sp-btn-primary" : "sp-btn", () => addParent(n, sg, card));
+    acts.appendChild(add);
+    if (ev.link) { const a = el("a", "sp-btn", "Se kilden"); a.href = ev.link; a.target = "_blank"; a.rel = "noopener"; acts.appendChild(a); }
+    acts.appendChild(btn("Ikke denne", "sp-btn sp-btn-quiet", () => { card.classList.add("aside"); }));
+    body.appendChild(acts);
+    if (featured) card.append(head, body); else card.prepend(head);
+    return card;
+  }
+
+  function addParent(n, sg, card) {
+    const slot = sg.relation === "father" ? 2 * n : 2 * n + 1;
+    if (person(slot)) { card.classList.add("aside"); return; }
+    const ev = sg.evidence[0];
+    const parent = cleanPerson({ given_name: sg.given_name, surname: sg.surname, birth_year: String(sg.birth_year || ""), birthplace: sg.birthplace || "" });
+    if (sg.record_id) parent.kept = { [sg.record_id]: { status: "confirmed", confidence: sg.confidence, year: ev.year, name: sg.name,
+      place: ev.place, source: ev.source.replace(ev.child_record_id, sg.record_id), reasons: ["Funnet i husstanden til " + ev.child_name] } };
+    tree[String(slot)] = parent;
+    const child = person(n); child.kept = child.kept || {};
+    if (!child.kept[ev.child_record_id]) child.kept[ev.child_record_id] = { status: "confirmed", confidence: sg.confidence, year: ev.year,
+      name: ev.child_name, place: ev.place, source: ev.source, reasons: [] };
+    save();
+    card.classList.add("done");
+    const b = card.querySelector(".sp-actions .sp-btn"); b.textContent = "Lagt til i treet"; b.disabled = true;
+    // rivals for the same parent are now set aside
+    card.parentElement.querySelectorAll(".rel-card").forEach(c => { if (c !== card && c.querySelector(".sp-find-title").textContent.includes(` ${sg.relation === "father" ? "far" : "mor"}:`)) c.classList.add("aside"); });
   }
 
   /* ---------------- eksempelfamilien (oppdiktet) ---------------- */

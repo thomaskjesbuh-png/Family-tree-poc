@@ -57,7 +57,10 @@
       <h1 class="title">Slekta di</h1>
       <p class="lede">Velg en person i treet. Når noen er gamle nok for folketellingene, kan du følge sporet deres.</p>
     </div>
-    <button type="button" class="sp-btn sp-btn-quiet" id="reset">Begynn på nytt</button>
+    <div class="sp-actions">
+      <button type="button" class="sp-btn" id="find-relatives">Let etter slektninger</button>
+      <button type="button" class="sp-btn sp-btn-quiet" id="reset">Begynn på nytt</button>
+    </div>
   </div>
   <section class="sp-tree canvas" aria-label="Slektstreet, eldste generasjon øverst">
     <div class="tree-inner" id="tree"></div>
@@ -107,6 +110,15 @@
     <p class="summary" id="summary" hidden></p>
     <div class="results" id="results"></div>
   </section>
+</main>
+
+<!-- ============ 4. Nye spor i slekta ============ -->
+<main id="relatives-view" class="relatives" hidden>
+  <button type="button" class="sp-btn sp-btn-quiet back" id="rel-back">← Tilbake til treet</button>
+  <h1 class="title">Nye spor i slekta</h1>
+  <p class="lede">Vi ser etter foreldrene til dem i treet som er gamle nok for folketellingene, i husstandene der de står oppført. Du bestemmer hva som legges til.</p>
+  <p class="data" id="rel-progress" aria-live="polite"></p>
+  <div id="rel-results" class="rel-results"></div>
 </main>
 
 <!-- person editor -->
