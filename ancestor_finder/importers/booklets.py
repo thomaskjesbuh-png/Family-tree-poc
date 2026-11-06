@@ -172,6 +172,20 @@ def _birth_year(born: str, year: int) -> tuple[int | None, bool]:
     return None, False
 
 
+def _expand_parish(bp: str, parish_name: str) -> str:
+    """'Prgj.' alone means this parish; 'L. Elvedals Prgj.' names another one.
+
+    Only the bare form is replaced with the booklet's parish. A named parish
+    keeps its name as written, without the 'Prgj.' suffix ("Nes Prgj." -> "Nes").
+    """
+    if re.fullmatch(r"(do\.?\s*)?(prgj|prestegjeld(et)?)\.?", bp.strip(), re.I):
+        return parish_name
+    m = re.fullmatch(r"(.+?)\s+(prgj|prestegjeld)\.?", bp.strip(), re.I)
+    if m:
+        return m.group(1).strip()
+    return bp
+
+
 def split_name(full: str) -> tuple[str, str]:
     """Given names vs patronymic/surname: the surname starts at the first
     patronymic after the first token, else it is the last token."""
@@ -300,8 +314,7 @@ def parse_booklet(pdf: Path, year: int, county_dir: str = "01Ostfold") -> list[R
             if bp.lower() in _DITTO:
                 bp = prev_bp
             bp = bp.replace("*", "").strip()
-            if re.search(r"\bprgj\b|\bprgj\.", bp, re.I):
-                bp = parish_name   # "born in this parish"
+            bp = _expand_parish(bp, parish_name)
             prev_bp = bp
             records.append(Record(
                 record_id=f"ft{year}-{muni_code}-{seq:05d}",

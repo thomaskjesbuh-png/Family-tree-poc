@@ -66,3 +66,15 @@ def test_jaro_winkler_bounds():
     assert names.jaro_winkler("", "") == 0.0
     assert names.jaro_winkler("abc", "abc") == 1.0
     assert 0 < names.jaro_winkler("martha", "marhta") < 1
+
+
+@pytest.mark.parametrize("a,b", [("Lille Elvedalen", "L. Elvedals"), ("Lille Elvedalen", "Lille-Elvedal"),
+                                 ("Sparbu", "Sparbu Prestegjeld"), ("Borge", "Borge herred"),
+                                 ("Høylandet", "Høilandet"), ("Rakkestad", "Rakkestadn")])
+def test_place_key_same(a, b):
+    assert names.place_key(a) == names.place_key(b)
+
+
+@pytest.mark.parametrize("a,b", [("Borge", "Berg"), ("Skjeberg", "Spydeberg"), ("Nes", "Nesodden")])
+def test_place_key_different(a, b):
+    assert names.place_key(a) != names.place_key(b) or len(names.place_key(a)) < 4

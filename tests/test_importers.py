@@ -132,3 +132,12 @@ def test_labelled_note_is_not_added_to_name(tmp_path, monkeypatch):
     recs = B.parse_booklet(tmp_path / "f9100199_hefte.pdf", 1910)
     assert [r.full_name for r in recs] == ["Lars Larsen", "Marte Larsen"]
     assert recs[0].spouse_name == "Marte Larsen" and recs[0].farm == "Bakken"
+
+
+@pytest.mark.parametrize("raw,expected", [
+    ("Prgj.", "Tønset"), ("prgj", "Tønset"), ("do Prgj.", "Tønset"),
+    ("L. Elvedals Prgj.", "L. Elvedals"), ("Vaage Prgj.", "Vaage"), ("Nes Prgj.", "Nes"), ("Sparbu Prestegjeld", "Sparbu"),
+    ("Rakkestad", "Rakkestad"),
+])
+def test_parish_birthplaces(raw, expected):
+    assert B._expand_parish(raw, "Tønset") == expected

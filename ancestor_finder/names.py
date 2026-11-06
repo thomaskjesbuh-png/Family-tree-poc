@@ -293,3 +293,33 @@ def all_surnames(query_surname: str, variants: list[str]) -> list[str]:
         if len(parts) > 1:
             out.append(" ".join(parts[1:]))
     return out
+
+
+_PLACE_ABBREV = {"l": "lille", "st": "stor", "n": "nordre", "s": "søndre", "ø": "østre", "v": "vestre"}
+_PLACE_NOISE = {"prgj", "prestegjeld", "herred", "sogn", "sogen", "landsogn", "kjøpstad", "by",
+                "sm", "smaal", "smaalenene", "h", "hed", "sverige", "sverge", "norge"}
+
+
+def place_key(place: str) -> str:
+    """Comparable form of a place name: 'L. Elvedals Prgj.' and 'Lille Elvedalen' -> 'lilleelvedal'.
+
+    Expands L./St. abbreviations, drops words like 'herred' and 'prgj', and
+    removes a genitive -s and the definite endings -en/-et/-n.
+    """
+    words = [w.strip(".") for w in clean(place).replace("-", " ").split()]
+    out = []
+    for i, w in enumerate(words):
+        if not w:
+            continue
+        if i == 0 and len(words) > 1 and w in ("l", "st"):
+            out.append(_PLACE_ABBREV[w])
+            continue
+        if w in _PLACE_NOISE:
+            continue
+        out.append(w)
+    k = phonetic("".join(out)).replace("øi", "øy")   # old spelling: Høilandet = Høylandet
+    for suffix in ("ens", "ets", "en", "et", "s", "n"):
+        if k.endswith(suffix) and len(k) - len(suffix) >= 4:
+            k = k[: -len(suffix)]
+            break
+    return k

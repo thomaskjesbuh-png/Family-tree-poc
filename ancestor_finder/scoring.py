@@ -104,8 +104,12 @@ def _place(q: PersonQuery, r: Record) -> ScorePart | None:
         return ScorePart("place", 0.4, WEIGHTS["place"], "record has no place")
     best, best_place = 0.0, ""
     if q.birthplace:
+        qk = names.place_key(q.birthplace)
         for p in rec_places:
             s = max(names.word_similarity(q.birthplace, t) for t in p.split())
+            pk = names.place_key(p)
+            if qk and pk:
+                s = max(s, 1.0 if qk == pk else names.word_similarity(qk, pk))
             if s > best:
                 best, best_place = s, p
     if best >= 0.95:
